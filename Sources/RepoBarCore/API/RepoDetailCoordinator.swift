@@ -51,8 +51,12 @@ actor RepoDetailCoordinator {
         let cacheState = self.policy.state(for: cache, now: now)
         let cachedOpenPulls = cache.openPulls ?? 0
         let cachedCiDetails = cache.ciDetails ?? CIStatusDetails(status: .unknown, runCount: nil)
-        let cachedActivity = cache.latestActivity
-        let cachedActivityEvents = cache.activityEvents ?? []
+        let cachedActivitySnapshot = Self.cachedActivitySnapshot(
+            latest: cache.latestActivity,
+            events: cache.activityEvents ?? []
+        )
+        let cachedActivity = cachedActivitySnapshot.latest
+        let cachedActivityEvents = cachedActivitySnapshot.events
         let cachedTraffic = cache.traffic
         let cachedHeatmap = cache.heatmap ?? []
         let cachedRelease = cache.latestRelease
@@ -210,6 +214,10 @@ actor RepoDetailCoordinator {
 
         let cacheState = self.policy.state(for: cache, now: now)
         let ciDetails = cache.ciDetails
+        let activitySnapshot = Self.cachedActivitySnapshot(
+            latest: cache.latestActivity,
+            events: cache.activityEvents ?? []
+        )
         return Repository.from(
             item: item,
             openPulls: openPulls,
@@ -217,8 +225,8 @@ actor RepoDetailCoordinator {
             ciStatus: ciDetails?.status ?? .unknown,
             ciRunCount: ciDetails?.runCount,
             latestRelease: cache.latestRelease,
-            latestActivity: cache.latestActivity,
-            activityEvents: cache.activityEvents ?? [],
+            latestActivity: activitySnapshot.latest,
+            activityEvents: activitySnapshot.events,
             traffic: cache.traffic,
             heatmap: cache.heatmap ?? [],
             detailCacheState: cacheState,
@@ -296,5 +304,17 @@ actor RepoDetailCoordinator {
 
     private static func capture<T>(_ work: @escaping @Sendable () async throws -> T) async -> Result<T, Error> {
         do { return try await .success(work()) } catch { return .failure(error) }
+    }
+
+    static func cachedActivitySnapshot(latest: ActivityEvent?, events: [ActivityEvent]) -> ActivitySnapshot {
+        let sorted = events.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.date == rhs.element.date {
+                    return lhs.offset < rhs.offset
+                }
+                return lhs.element.date > rhs.element.date
+            }
+            .map(\.element)
+        return ActivitySnapshot(events: sorted, latest: sorted.first ?? latest)
     }
 }

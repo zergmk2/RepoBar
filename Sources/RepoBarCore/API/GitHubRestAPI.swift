@@ -210,7 +210,25 @@ struct GitHubRestAPI {
         components.queryItems = [URLQueryItem(name: "per_page", value: "30")]
         let (data, _) = try await authorizedGet(url: components.url!, token: token)
         let events = try GitHubDecoding.decode([RepoEvent].self, from: data)
-        let mapped = events.map { event in
+        return Self.activitySnapshot(from: events, owner: owner, name: name, webHost: webHost, limit: limit)
+    }
+
+    static func activitySnapshot(
+        from events: [RepoEvent],
+        owner: String,
+        name: String,
+        webHost: URL,
+        limit: Int
+    ) -> ActivitySnapshot {
+        let sorted = events.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.createdAt == rhs.element.createdAt {
+                    return lhs.offset < rhs.offset
+                }
+                return lhs.element.createdAt > rhs.element.createdAt
+            }
+            .map(\.element)
+        let mapped = sorted.map { event in
             (event: event, activity: event.activityEvent(owner: owner, name: name, webHost: webHost))
         }
         let limited = Array(mapped.prefix(max(limit, 0)))

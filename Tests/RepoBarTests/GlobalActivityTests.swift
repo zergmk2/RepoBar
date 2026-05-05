@@ -119,6 +119,70 @@ struct GlobalActivityTests {
     }
 
     @Test
+    func `repo activity snapshot sorts events by date before limiting`() throws {
+        let older = RepoEvent(
+            type: "PullRequestEvent",
+            actor: EventActor(login: "octo", avatarUrl: nil),
+            repo: nil,
+            payload: EventPayload(
+                action: "closed",
+                comment: nil,
+                issue: nil,
+                pullRequest: EventPullRequest(title: nil, number: 1, merged: false, htmlUrl: nil)
+            ),
+            createdAt: Date(timeIntervalSinceReferenceDate: 100)
+        )
+        let newer = RepoEvent(
+            type: "PullRequestEvent",
+            actor: EventActor(login: "bot", avatarUrl: nil),
+            repo: nil,
+            payload: EventPayload(
+                action: "labeled",
+                comment: nil,
+                issue: nil,
+                pullRequest: EventPullRequest(title: nil, number: 2, merged: false, htmlUrl: nil)
+            ),
+            createdAt: Date(timeIntervalSinceReferenceDate: 200)
+        )
+        let webHost = try #require(URL(string: "https://github.com"))
+
+        let snapshot = GitHubRestAPI.activitySnapshot(
+            from: [older, newer],
+            owner: "steipete",
+            name: "RepoBar",
+            webHost: webHost,
+            limit: 2
+        )
+
+        #expect(snapshot.events.map(\.actor) == ["bot", "octo"])
+        #expect(snapshot.latest?.actor == "bot")
+    }
+
+    @Test
+    func `cached repo activity snapshot sorts events and recomputes latest`() throws {
+        let url = try #require(URL(string: "https://github.com/steipete/RepoBar"))
+        let older = ActivityEvent(
+            title: "old",
+            actor: "octo",
+            date: Date(timeIntervalSinceReferenceDate: 100),
+            url: url,
+            eventType: "PullRequestEvent"
+        )
+        let newer = ActivityEvent(
+            title: "new",
+            actor: "bot",
+            date: Date(timeIntervalSinceReferenceDate: 200),
+            url: url,
+            eventType: "PullRequestEvent"
+        )
+
+        let snapshot = RepoDetailCoordinator.cachedActivitySnapshot(latest: older, events: [older, newer])
+
+        #expect(snapshot.events.map(\.actor) == ["bot", "octo"])
+        #expect(snapshot.latest == newer)
+    }
+
+    @Test
     func `global activity merge dedupes and keeps newest actor scoped events`() throws {
         let firstURL = try #require(URL(string: "https://github.com/steipete/RepoBar/commit/abc"))
         let secondURL = try #require(URL(string: "https://github.com/steipete/RepoBar/pull/1"))
