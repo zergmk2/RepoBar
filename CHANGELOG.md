@@ -4,6 +4,7 @@
 
 - Add an optional Advanced setting for a typed GitHub reference monitor that can surface issue, pull request, or commit-hash matches from accessible repositories as a separate menu bar item, with visible Accessibility permission setup and live GitHub fallback on cache misses.
 - Show per-endpoint GitHub cooldowns in the Rate Limits sidebar and diagnostics so commit-activity backoff is distinct from healthy REST/GraphQL quota buckets.
+- Stop showing a generic “not found” warning when a repository has no visible releases endpoint.
 - Remove misleading page-size count badges from Releases, Discussions, Tags, Branches, and Contributors submenu rows.
 - Sort repository activity events by timestamp so repo submenus do not show stale activity when GitHub returns events out of order.
 - Refresh the RepoBar website with a cleaner minimal design, dark-mode support, and clearer install/setup copy.

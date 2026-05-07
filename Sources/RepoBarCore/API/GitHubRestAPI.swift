@@ -503,7 +503,7 @@ struct GitHubRestAPI {
         )!
         components.queryItems = [URLQueryItem(name: "per_page", value: "20")]
         let (data, response) = try await authorizedGet(url: components.url!, token: token, allowedStatuses: [200, 304, 404])
-        guard response.statusCode != 404 else { throw URLError(.fileDoesNotExist) }
+        guard response.statusCode != 404 else { return nil }
 
         let releases = try GitHubDecoding.decode([ReleaseResponse].self, from: data)
         return GitHubReleasePicker.latestRelease(from: releases)
