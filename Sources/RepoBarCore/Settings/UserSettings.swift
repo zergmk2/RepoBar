@@ -163,6 +163,7 @@ public struct LocalProjectsSettings: Equatable, Codable {
 
 public struct IssueNumberMonitorSettings: Equatable, Codable, Sendable {
     public var enabled = false
+    public var typedReferencesEnabled = false
 
     public init() {}
 }

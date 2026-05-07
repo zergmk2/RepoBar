@@ -174,6 +174,13 @@ struct AdvancedSettingsView: View {
                         self.appState.updateKeyboardIssueMonitor()
                     }
 
+                Toggle("Watch typed references", isOn: self.$session.settings.issueNumberMonitor.typedReferencesEnabled)
+                    .disabled(self.session.settings.issueNumberMonitor.enabled == false || self.appState.accessibilityPermission.isTrusted == false)
+                    .onChange(of: self.session.settings.issueNumberMonitor.typedReferencesEnabled) { _, _ in
+                        self.appState.persistSettings()
+                        self.appState.updateKeyboardIssueMonitor()
+                    }
+
                 LabeledContent("Accessibility") {
                     HStack(spacing: 8) {
                         Image(systemName: self.accessibilityStatusIcon)
@@ -201,8 +208,8 @@ struct AdvancedSettingsView: View {
                 Text("GitHub Reference Watcher")
             } footer: {
                 Text(
-                    "Watches copied GitHub URLs plus typed issue numbers and commit hashes, then shows the best cached or live match in a separate menu bar item. " +
-                        "Copied URLs work without Accessibility; grant Accessibility for typed references."
+                    "Watches copied GitHub URLs, issue numbers, and commit hashes, then shows the best cached or live match in a separate menu bar item. " +
+                        "Typed references are optional and require Accessibility."
                 )
             }
 

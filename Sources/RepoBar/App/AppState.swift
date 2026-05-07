@@ -153,7 +153,7 @@ final class AppState {
                 }
             )
         }
-        let includeKeyboardEvents = self.accessibilityPermission.isTrusted
+        let includeKeyboardEvents = self.session.settings.issueNumberMonitor.typedReferencesEnabled && self.accessibilityPermission.isTrusted
         let mode = includeKeyboardEvents ? "keyboard+clipboard" : "clipboard-only"
         Task { await DiagnosticsLogger.shared.message("GitHub reference monitor started mode=\(mode)") }
         self.keyboardIssueMonitor?.start(includeKeyboardEvents: includeKeyboardEvents)
