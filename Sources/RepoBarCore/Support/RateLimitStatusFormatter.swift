@@ -49,10 +49,10 @@ public enum RateLimitStatusFormatter {
         if let reset = diagnostics.rateLimitReset {
             return "Limited · resets \(RelativeFormatter.string(from: reset, relativeTo: now))"
         }
-        if let cooldown = diagnostics.endpointCooldowns
-            .filter({ $0.retryAfter > now })
-            .sorted(by: { $0.retryAfter < $1.retryAfter })
-            .first {
+        let nextCooldown = diagnostics.endpointCooldowns
+            .filter { $0.retryAfter > now }
+            .min(by: { $0.retryAfter < $1.retryAfter })
+        if let cooldown = nextCooldown {
             return "Endpoint cooldown · \(Self.endpointCooldownText(cooldown, now: now))"
         }
 

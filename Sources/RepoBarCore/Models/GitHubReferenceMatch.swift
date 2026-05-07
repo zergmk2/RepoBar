@@ -58,6 +58,7 @@ public enum GitHubReferenceQuery: Sendable, Hashable {
         guard parts.count == 2, parts[0].isEmpty == false, parts[1].isEmpty == false else {
             return nil
         }
+
         return (parts[0], parts[1])
     }
 }

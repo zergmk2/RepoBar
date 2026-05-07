@@ -106,9 +106,11 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     func attachMainMenu(to statusItem: NSStatusItem) {
         let menu = self.mainMenu ?? self.menuBuilder.makeMainMenu()
         self.mainMenu = menu
+        menu.delegate = self
         self.statusItem = statusItem
         statusItem.length = NSStatusItem.variableLength
         statusItem.menu = menu
+        statusItem.button?.isEnabled = true
         self.applyStatusItemAppearance()
         DispatchQueue.main.async { [weak self] in
             self?.applyStatusItemAppearance()
@@ -187,12 +189,29 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     }
 
     @objc private func keyboardIssueMatchChanged() {
-        // Keep the reference resolver active, but do not mutate status items until
-        // the multi-item AppKit click regression is fixed.
+        self.syncKeyboardIssueStatusItem()
     }
 
     private func syncKeyboardIssueStatusItem() {
-        self.keyboardIssueStatusItem?.isVisible = false
+        guard let match = self.appState.session.keyboardIssueMatch else {
+            self.removeKeyboardIssueStatusItem()
+            return
+        }
+
+        let item = self.lazyKeyboardIssueStatusItem()
+        let menu = self.lazyKeyboardIssueMenu()
+        self.populateKeyboardIssueMenu(menu, match: match)
+        item.length = NSStatusItem.variableLength
+        item.menu = menu
+        if let button = item.button {
+            button.isEnabled = true
+            button.image = NSImage(systemSymbolName: self.keyboardIssueSystemImage(for: match), accessibilityDescription: match.kind.label)
+            button.image?.isTemplate = true
+            button.imageScaling = .scaleNone
+            self.setButtonTitle(self.keyboardIssueTitle(for: match), for: button)
+            button.toolTip = self.keyboardIssueMenuTitle(for: match)
+        }
+        item.isVisible = true
     }
 
     private func lazyKeyboardIssueStatusItem() -> NSStatusItem {
@@ -202,10 +221,20 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
 
         let item = self.statusBar.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = "repobar-github-reference"
-        item.isVisible = false
         item.button?.imageScaling = .scaleNone
         self.keyboardIssueStatusItem = item
         return item
+    }
+
+    private func removeKeyboardIssueStatusItem() {
+        self.keyboardIssueMenu = nil
+        guard let item = self.keyboardIssueStatusItem else { return }
+
+        item.menu = nil
+        item.button?.image = nil
+        item.button?.title = ""
+        self.keyboardIssueStatusItem = nil
+        self.statusBar.removeStatusItem(item)
     }
 
     private func lazyKeyboardIssueMenu() -> NSMenu {
@@ -281,7 +310,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
         let prefix = [match.query.displayText, state, match.repositoryFullName]
             .compactMap(\.self)
             .joined(separator: " ")
-        let maxTitleLength = 44
+        let maxTitleLength = 48
         let title = match.title.count > maxTitleLength
             ? "\(match.title.prefix(maxTitleLength))…"
             : match.title
@@ -371,11 +400,21 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         let signpost = self.signposter.beginInterval("menuWillOpen")
         defer { self.signposter.endInterval("menuWillOpen", signpost) }
-        if menu === self.keyboardIssueMenu {
-            self.logMenuEvent("menuWillOpen keyboardIssueMenu items=\(menu.items.count)")
-            self.refreshKeyboardIssueMenuIfNeeded(menu)
-            return
-        } else if menu === self.mainMenu {
+        if self.prepareKeyboardIssueMenuIfNeeded(menu) { return }
+        self.prepareMenuAppearance(menu)
+        if self.recentListCoordinator.handleMenuWillOpen(menu) { return }
+        if self.localGitMenuCoordinator.handleMenuWillOpen(menu) { return }
+        if self.changelogMenuCoordinator.handleMenuWillOpen(menu) { return }
+        self.prefetchChangelogIfNeeded(for: menu)
+        if menu === self.mainMenu {
+            self.prepareMainMenuWillOpen(menu)
+        } else {
+            self.prepareSubmenuWillOpen(menu)
+        }
+    }
+
+    private func prepareMenuAppearance(_ menu: NSMenu) {
+        if menu === self.mainMenu {
             self.logMenuEvent("menuWillOpen mainMenu items=\(menu.items.count)")
         } else {
             self.logMenuEvent("menuWillOpen submenu items=\(menu.items.count)")
@@ -383,82 +422,100 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
         if let app = NSApp {
             menu.appearance = app.effectiveAppearance
         }
-        if self.recentListCoordinator.handleMenuWillOpen(menu) { return }
-        if self.localGitMenuCoordinator.handleMenuWillOpen(menu) { return }
-        if self.changelogMenuCoordinator.handleMenuWillOpen(menu) { return }
-        if let fullName = self.menuBuilder.repoFullName(for: menu) {
-            let localPath = self.appState.session.localRepoIndex.status(forFullName: fullName)?.path
-            let releaseTag = self.appState.session.repositories
-                .first(where: { $0.fullName == fullName })?
-                .latestRelease?
-                .tag
-            self.changelogMenuCoordinator.prefetchChangelog(
-                fullName: fullName,
-                localPath: localPath,
-                releaseTag: releaseTag
-            )
+    }
+
+    private func prepareKeyboardIssueMenuIfNeeded(_ menu: NSMenu) -> Bool {
+        guard menu === self.keyboardIssueMenu else { return false }
+
+        self.logMenuEvent("menuWillOpen keyboardIssueMenu items=\(menu.items.count)")
+        self.refreshKeyboardIssueMenuIfNeeded(menu)
+        return true
+    }
+
+    private func prefetchChangelogIfNeeded(for menu: NSMenu) {
+        guard let fullName = self.menuBuilder.repoFullName(for: menu) else { return }
+
+        let localPath = self.appState.session.localRepoIndex.status(forFullName: fullName)?.path
+        let releaseTag = self.appState.session.repositories
+            .first(where: { $0.fullName == fullName })?
+            .latestRelease?
+            .tag
+        self.changelogMenuCoordinator.prefetchChangelog(
+            fullName: fullName,
+            localPath: localPath,
+            releaseTag: releaseTag
+        )
+    }
+
+    private func prepareMainMenuWillOpen(_ menu: NSMenu) {
+        self.appState.reloadRateLimitCacheSummary()
+        if menu.delegate == nil {
+            menu.delegate = self
         }
-        if menu === self.mainMenu {
-            self.appState.reloadRateLimitCacheSummary()
-            if menu.delegate == nil {
-                menu.delegate = self
+        let plan = self.menuBuilder.mainMenuPlan()
+        self.recentListCoordinator.pruneMenus()
+        self.localGitMenuCoordinator.pruneMenus()
+        self.changelogMenuCoordinator.pruneMenus()
+        if self.appState.session.settings.appearance.showContributionHeader {
+            if case let .loggedIn(user) = self.appState.session.account {
+                Task { await self.appState.loadContributionHeatmapIfNeeded(for: user.username) }
             }
-            let plan = self.menuBuilder.mainMenuPlan()
-            self.recentListCoordinator.pruneMenus()
-            self.localGitMenuCoordinator.pruneMenus()
-            self.changelogMenuCoordinator.pruneMenus()
-            if self.appState.session.settings.appearance.showContributionHeader {
-                if case let .loggedIn(user) = self.appState.session.account {
-                    Task { await self.appState.loadContributionHeatmapIfNeeded(for: user.username) }
+        }
+        self.appState.refreshIfNeededForMenu()
+        let isMenuTooSmall = menu.items.count < Self.minimumMainMenuItems
+        if isMenuTooSmall {
+            self.logMenuEvent("menuWillOpen mainMenu invalidating cache: items=\(menu.items.count)")
+            self.lastMainMenuSignature = nil
+        }
+        let planDidRebuild = self.rebuildMainMenuIfNeeded(menu, plan: plan, isMenuTooSmall: isMenuTooSmall)
+        let repoFullNames = Set(menu.items.compactMap { $0.representedObject as? String }.filter { $0.contains("/") })
+        self.recentListCoordinator.prefetchRecentLists(fullNames: repoFullNames)
+        self.refreshMainMenuMetricsAfterOpen(menu, plan: plan, didRebuildMenu: planDidRebuild)
+    }
+
+    private func rebuildMainMenuIfNeeded(_ menu: NSMenu, plan: MainMenuPlan, isMenuTooSmall: Bool) -> Bool {
+        var didRebuildMenu = false
+        if self.lastMainMenuSignature != plan.signature || menu.items.isEmpty || isMenuTooSmall {
+            self.menuBuilder.populateMainMenu(menu, repos: plan.repos)
+            self.lastMainMenuSignature = plan.signature
+            didRebuildMenu = true
+        }
+        if didRebuildMenu {
+            if let cachedWidth = self.lastMainMenuWidth {
+                self.menuBuilder.refreshMenuViewHeights(in: menu, width: cachedWidth)
+            } else {
+                self.menuBuilder.refreshMenuViewHeights(in: menu)
+            }
+        }
+        return didRebuildMenu
+    }
+
+    private func refreshMainMenuMetricsAfterOpen(_ menu: NSMenu, plan: MainMenuPlan, didRebuildMenu: Bool) {
+        let shouldRecomputeWidth = self.lastMainMenuWidth == nil || self.lastMainMenuWidthSignature != plan.signature
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+
+            if shouldRecomputeWidth {
+                let measuredWidth = self.menuBuilder.menuWidth(for: menu)
+                let priorWidth = self.lastMainMenuWidth
+                let shouldRemeasure = priorWidth == nil || abs(measuredWidth - (priorWidth ?? 0)) > 0.5
+                self.lastMainMenuWidth = measuredWidth
+                self.lastMainMenuWidthSignature = plan.signature
+                if shouldRemeasure, didRebuildMenu {
+                    self.menuBuilder.refreshMenuViewHeights(in: menu, width: measuredWidth)
                 }
             }
-            self.appState.refreshIfNeededForMenu()
-            let isMenuTooSmall = menu.items.count < Self.minimumMainMenuItems
-            if isMenuTooSmall {
-                self.logMenuEvent("menuWillOpen mainMenu invalidating cache: items=\(menu.items.count)")
-                self.lastMainMenuSignature = nil
-            }
-            var didRebuildMenu = false
-            if self.lastMainMenuSignature != plan.signature || menu.items.isEmpty || isMenuTooSmall {
-                self.menuBuilder.populateMainMenu(menu, repos: plan.repos)
-                self.lastMainMenuSignature = plan.signature
-                didRebuildMenu = true
-            }
-            if didRebuildMenu {
-                if let cachedWidth = self.lastMainMenuWidth {
-                    self.menuBuilder.refreshMenuViewHeights(in: menu, width: cachedWidth)
-                } else {
-                    self.menuBuilder.refreshMenuViewHeights(in: menu)
-                }
-            }
+            self.menuBuilder.clearHighlights(in: menu)
+            self.startObservingMenuResize(for: menu)
+        }
+    }
 
-            let repoFullNames = Set(menu.items.compactMap { $0.representedObject as? String }.filter { $0.contains("/") })
-            self.recentListCoordinator.prefetchRecentLists(fullNames: repoFullNames)
-
-            let shouldRecomputeWidth = self.lastMainMenuWidth == nil || self.lastMainMenuWidthSignature != plan.signature
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-
-                if shouldRecomputeWidth {
-                    let measuredWidth = self.menuBuilder.menuWidth(for: menu)
-                    let priorWidth = self.lastMainMenuWidth
-                    let shouldRemeasure = priorWidth == nil || abs(measuredWidth - (priorWidth ?? 0)) > 0.5
-                    self.lastMainMenuWidth = measuredWidth
-                    self.lastMainMenuWidthSignature = plan.signature
-                    if shouldRemeasure, didRebuildMenu {
-                        self.menuBuilder.refreshMenuViewHeights(in: menu, width: measuredWidth)
-                    }
-                }
-                self.menuBuilder.clearHighlights(in: menu)
-                self.startObservingMenuResize(for: menu)
-            }
-        } else {
-            self.menuBuilder.refreshMenuViewHeights(in: menu)
-            let submenuFullName = menu.supermenu?.items.first(where: { $0.submenu === menu })?.representedObject as? String
-            if let fullName = submenuFullName, fullName.contains("/") {
-                // Repo submenu opened; prefetch so nested recent lists appear instantly.
-                self.recentListCoordinator.prefetchRecentLists(fullNames: [fullName])
-            }
+    private func prepareSubmenuWillOpen(_ menu: NSMenu) {
+        self.menuBuilder.refreshMenuViewHeights(in: menu)
+        let submenuFullName = menu.supermenu?.items.first(where: { $0.submenu === menu })?.representedObject as? String
+        if let fullName = submenuFullName, fullName.contains("/") {
+            // Repo submenu opened; prefetch so nested recent lists appear instantly.
+            self.recentListCoordinator.prefetchRecentLists(fullNames: [fullName])
         }
     }
 

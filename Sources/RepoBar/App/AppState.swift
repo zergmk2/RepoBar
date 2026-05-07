@@ -144,14 +144,25 @@ final class AppState {
 
         if self.keyboardIssueMonitor == nil {
             Task { await DiagnosticsLogger.shared.message("keyboard reference monitor created") }
-            self.keyboardIssueMonitor = KeyboardIssueMonitor { [weak self] query in
-                await self?.resolveTypedGitHubReference(query)
-            }
+            self.keyboardIssueMonitor = KeyboardIssueMonitor(
+                onPasteboardWithoutReference: { [weak self] in
+                    await self?.clearTypedGitHubReference()
+                },
+                onReference: { [weak self] query in
+                    await self?.resolveTypedGitHubReference(query)
+                }
+            )
         }
         let includeKeyboardEvents = self.accessibilityPermission.isTrusted
         let mode = includeKeyboardEvents ? "keyboard+clipboard" : "clipboard-only"
         Task { await DiagnosticsLogger.shared.message("GitHub reference monitor started mode=\(mode)") }
         self.keyboardIssueMonitor?.start(includeKeyboardEvents: includeKeyboardEvents)
+    }
+
+    private func clearTypedGitHubReference() async {
+        guard self.session.settings.issueNumberMonitor.enabled else { return }
+
+        self.setKeyboardIssueMatch(nil)
     }
 
     private func resolveTypedGitHubReference(_ query: GitHubReferenceQuery) async {
@@ -164,7 +175,7 @@ final class AppState {
             repositories
         }
         guard candidateRepositories.isEmpty == false else {
-            self.setKeyboardIssueMatch(await self.github.liveReferenceMatch(query: query))
+            await self.setKeyboardIssueMatch(self.github.liveReferenceMatch(query: query))
             return
         }
 
@@ -187,7 +198,7 @@ final class AppState {
             return
         }
 
-        self.setKeyboardIssueMatch(await self.github.liveReferenceMatch(query: query))
+        await self.setKeyboardIssueMatch(self.github.liveReferenceMatch(query: query))
     }
 
     private func githubReferenceCandidateRepositories() -> [Repository] {

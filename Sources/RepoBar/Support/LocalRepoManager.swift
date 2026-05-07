@@ -227,10 +227,10 @@ actor LocalRepoManager {
                 continue
             }
 
-            if options.allowNetworkOperations,
-               options.fetchInterval > 0,
-               self.needsFetch(for: repoURL, now: now, interval: options.fetchInterval)
-            {
+            let shouldFetch = options.allowNetworkOperations
+                && options.fetchInterval > 0
+                && self.needsFetch(for: repoURL, now: now, interval: options.fetchInterval)
+            if shouldFetch {
                 refresh.append(repoURL)
                 continue
             }

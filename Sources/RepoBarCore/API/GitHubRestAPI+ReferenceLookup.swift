@@ -1,19 +1,29 @@
 import Foundation
 
+private struct GitHubReferenceCacheLookupContext {
+    let baseURL: URL
+    let cache: HTTPResponseDiskCache
+    let limit: Int
+}
+
 extension GitHubRestAPI {
     func cachedReferenceMatches(query: GitHubReferenceQuery, repositories: [Repository], limit: Int) async -> [GitHubReferenceMatch] {
         guard let cache = HTTPResponseDiskCache.standard() else { return [] }
 
-        let baseURL = await apiHost()
+        let context = await GitHubReferenceCacheLookupContext(
+            baseURL: apiHost(),
+            cache: cache,
+            limit: limit
+        )
         var matches: [GitHubReferenceMatch] = []
         for repo in repositories where repo.viewerCanRead && query.matches(repo: repo) {
             switch query {
             case let .issueNumber(number),
                  let .repositoryIssueNumber(_, number):
-                matches.append(contentsOf: self.cachedIssueNumberMatches(query: query, number: number, repo: repo, baseURL: baseURL, cache: cache, limit: limit))
+                matches.append(contentsOf: self.cachedIssueNumberMatches(query: query, number: number, repo: repo, context: context))
             case let .commitHash(hash),
                  let .repositoryCommitHash(_, hash):
-                matches.append(contentsOf: self.cachedCommitMatches(query: query, hash: hash, repo: repo, baseURL: baseURL, cache: cache, limit: limit))
+                matches.append(contentsOf: self.cachedCommitMatches(query: query, hash: hash, repo: repo, context: context))
             }
         }
         return matches
@@ -40,11 +50,11 @@ extension GitHubRestAPI {
     func liveReferenceMatch(query: GitHubReferenceQuery) async -> GitHubReferenceMatch? {
         switch query {
         case .issueNumber, .commitHash:
-            return nil
+            nil
         case let .repositoryIssueNumber(repositoryFullName, number):
-            return await self.liveIssueNumberMatch(query: query, number: number, repositoryFullName: repositoryFullName)
+            await self.liveIssueNumberMatch(query: query, number: number, repositoryFullName: repositoryFullName)
         case let .repositoryCommitHash(repositoryFullName, hash):
-            return await self.liveCommitMatch(query: query, hash: hash, repositoryFullName: repositoryFullName)
+            await self.liveCommitMatch(query: query, hash: hash, repositoryFullName: repositoryFullName)
         }
     }
 
@@ -52,14 +62,12 @@ extension GitHubRestAPI {
         query: GitHubReferenceQuery,
         number: Int,
         repo: Repository,
-        baseURL: URL,
-        cache: HTTPResponseDiskCache,
-        limit: Int
+        context: GitHubReferenceCacheLookupContext
     ) -> [GitHubReferenceMatch] {
         var matches: [GitHubReferenceMatch] = []
-        let issueURLs = self.cachedRecentIssueURLs(baseURL: baseURL, owner: repo.owner, name: repo.name)
+        let issueURLs = self.cachedRecentIssueURLs(baseURL: context.baseURL, owner: repo.owner, name: repo.name)
         for url in issueURLs {
-            guard let cached = cache.cached(url: url),
+            guard let cached = context.cache.cached(url: url),
                   let issues = try? GitHubRecentDecoders.decodeRecentIssues(from: cached.data)
             else { continue }
 
@@ -77,9 +85,9 @@ extension GitHubRestAPI {
             })
         }
 
-        let pullURLs = self.cachedRecentPullRequestURLs(baseURL: baseURL, owner: repo.owner, name: repo.name, limit: limit)
+        let pullURLs = self.cachedRecentPullRequestURLs(baseURL: context.baseURL, owner: repo.owner, name: repo.name, limit: context.limit)
         for url in pullURLs {
-            guard let cached = cache.cached(url: url),
+            guard let cached = context.cache.cached(url: url),
                   let pulls = try? GitHubRecentDecoders.decodeRecentPullRequests(from: cached.data)
             else { continue }
 
@@ -103,15 +111,13 @@ extension GitHubRestAPI {
         query: GitHubReferenceQuery,
         hash: String,
         repo: Repository,
-        baseURL: URL,
-        cache: HTTPResponseDiskCache,
-        limit: Int
+        context: GitHubReferenceCacheLookupContext
     ) -> [GitHubReferenceMatch] {
         let normalized = hash.lowercased()
-        let urls = self.cachedRecentCommitURLs(baseURL: baseURL, owner: repo.owner, name: repo.name, limit: limit)
+        let urls = self.cachedRecentCommitURLs(baseURL: context.baseURL, owner: repo.owner, name: repo.name, limit: context.limit)
         var matches: [GitHubReferenceMatch] = []
         for url in urls {
-            guard let cached = cache.cached(url: url),
+            guard let cached = context.cache.cached(url: url),
                   let commits = try? GitHubRecentDecoders.decodeRecentCommits(from: cached.data)
             else { continue }
 
@@ -203,6 +209,7 @@ extension GitHubRestAPI {
                 message: HTTPURLResponse.localizedString(forStatusCode: response.statusCode)
             )
         }
+
         return data
     }
 

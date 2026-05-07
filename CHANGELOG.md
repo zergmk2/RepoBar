@@ -7,6 +7,8 @@
 - Stop showing a generic “not found” warning when a repository has no visible releases endpoint.
 - Hide the repository filter bar when the only available scope would be Local.
 - Resolve copied GitHub issue, pull request, and commit URLs through live GitHub even before signing in.
+- Move GitHub reference watcher pasteboard polling off the main thread so the menu bar stays responsive.
+- Restore AppKit-native status item menus, keep the status buttons enabled, and remove the watcher item when no match is visible.
 - Remove misleading page-size count badges from Releases, Discussions, Tags, Branches, and Contributors submenu rows.
 - Sort repository activity events by timestamp so repo submenus do not show stale activity when GitHub returns events out of order.
 - Refresh the RepoBar website with a cleaner minimal design, dark-mode support, and clearer install/setup copy.
