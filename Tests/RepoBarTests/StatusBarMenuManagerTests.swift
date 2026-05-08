@@ -21,7 +21,7 @@ struct StatusBarMenuManagerTests {
 
     @MainActor
     @Test
-    func `keyboard reference status item is created only while a match exists`() throws {
+    func `keyboard reference status item is hidden instead of recreated`() throws {
         let appState = AppState()
         let manager = StatusBarMenuManager(appState: appState, statusBar: NSStatusBar())
         appState.session.keyboardIssueMatch = try self.makeMatch()
@@ -43,8 +43,9 @@ struct StatusBarMenuManagerTests {
         appState.session.keyboardIssueMatch = nil
         manager.syncKeyboardIssueStatusItemForTesting()
 
-        #expect(manager.keyboardIssueStatusItemForTesting() == nil)
-        #expect(manager.keyboardIssueMenuForTesting() == nil)
+        #expect(manager.keyboardIssueStatusItemForTesting() === item)
+        #expect(!item.isVisible)
+        #expect(manager.keyboardIssueMenuForTesting() === menu)
     }
 
     private func makeMatch() throws -> GitHubReferenceMatch {

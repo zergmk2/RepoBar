@@ -12,6 +12,7 @@
 - Keep typed GitHub reference watching behind a separate Advanced setting so clipboard watching cannot install a global keyboard monitor by default.
 - Show GitHub reference matches as a richer inline menu preview with state, kind, title, repository, and timestamp.
 - Stop using AppKit status item autosave names and explicitly tear down status items on quit to avoid stale menu bar item state across debug relaunches.
+- Hide the GitHub reference watcher status item between matches instead of recreating it, avoiding stale AppKit scene status items that can block menu clicks.
 - Remove misleading page-size count badges from Releases, Discussions, Tags, Branches, and Contributors submenu rows.
 - Sort repository activity events by timestamp so repo submenus do not show stale activity when GitHub returns events out of order.
 - Refresh the RepoBar website with a cleaner minimal design, dark-mode support, and clearer install/setup copy.

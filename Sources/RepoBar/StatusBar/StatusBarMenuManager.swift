@@ -208,7 +208,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
 
     private func syncKeyboardIssueStatusItem() {
         guard let match = self.appState.session.keyboardIssueMatch else {
-            self.removeKeyboardIssueStatusItem()
+            self.hideKeyboardIssueStatusItem()
             return
         }
 
@@ -227,6 +227,18 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
         }
         item.isVisible = true
         self.auditStatusItems("syncKeyboardIssueStatusItem visible")
+    }
+
+    private func hideKeyboardIssueStatusItem() {
+        guard let item = self.keyboardIssueStatusItem else { return }
+
+        item.isVisible = false
+        if let button = item.button {
+            button.image = nil
+            button.title = ""
+            button.toolTip = nil
+        }
+        self.auditStatusItems("hideKeyboardIssueStatusItem")
     }
 
     private func lazyKeyboardIssueStatusItem() -> NSStatusItem {
