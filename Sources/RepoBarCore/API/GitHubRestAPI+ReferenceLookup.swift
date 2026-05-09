@@ -284,12 +284,20 @@ private struct IssueLookupResponse: Decodable {
             url: self.htmlUrl,
             repositoryFullName: repositoryFullName,
             kind: self.pullRequest == nil ? .issue : .pullRequest,
-            state: GitHubReferenceState(rawValue: self.state.lowercased()),
+            state: self.referenceState,
             createdAt: self.createdAt,
             updatedAt: self.updatedAt,
             bodyPreview: Self.bodyPreview(from: self.body),
             authorLogin: self.user?.login
         )
+    }
+
+    private var referenceState: GitHubReferenceState? {
+        if self.pullRequest?.mergedAt != nil {
+            return .merged
+        }
+
+        return GitHubReferenceState(rawValue: self.state.lowercased())
     }
 
     private static func bodyPreview(from body: String?) -> String? {
@@ -310,7 +318,13 @@ private struct IssueLookupResponse: Decodable {
     }
 }
 
-private struct PullRequestMarker: Decodable {}
+private struct PullRequestMarker: Decodable {
+    let mergedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case mergedAt = "merged_at"
+    }
+}
 
 private struct LookupUser: Decodable {
     let login: String

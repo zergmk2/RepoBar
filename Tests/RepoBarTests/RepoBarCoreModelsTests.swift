@@ -164,6 +164,9 @@ struct RepoBarCoreModelsTests {
     @Test
     func `github reference query display text`() {
         #expect(GitHubReferenceQuery.issueNumber(7).displayText == "#7")
+        #expect(GitHubReferenceState.open.label == "Open")
+        #expect(GitHubReferenceState.closed.label == "Closed")
+        #expect(GitHubReferenceState.merged.label == "Merged")
         #expect(
             GitHubReferenceQuery.repositoryIssueNumber(
                 repositoryFullName: "openclaw/openclaw",

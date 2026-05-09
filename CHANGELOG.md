@@ -13,6 +13,7 @@
 - Keep GitHub reference watching clipboard-only so RepoBar never needs Accessibility permission or global keyboard monitoring for this feature.
 - Show GitHub reference matches as a richer inline menu preview with state, kind, title, repository, and timestamp.
 - Show live issue and pull request descriptions plus authors in the inline GitHub reference menu preview when GitHub returns them.
+- Distinguish merged pull requests from closed ones in GitHub reference previews and status item icons.
 - Use fresh AppKit autosave names for RepoBar status items and explicitly tear them down on quit to avoid stale menu bar item state across debug relaunches.
 - Collapse the GitHub reference watcher to a zero-width placeholder between matches so it keeps its menu bar placement while avoiding stale hit regions.
 - Remove misleading page-size count badges from Releases, Discussions, Tags, Branches, and Contributors submenu rows.

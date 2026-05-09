@@ -99,7 +99,14 @@ struct GitHubReferencePreviewMenuItemView: View {
         case .issue:
             self.match.state == .closed ? "checkmark.circle" : "exclamationmark.circle"
         case .pullRequest:
-            self.match.state == .closed ? "arrow.triangle.merge" : "arrow.triangle.branch.circle"
+            switch self.match.state {
+            case .merged:
+                "arrow.triangle.merge"
+            case .closed:
+                "xmark.circle"
+            case .open, nil:
+                "arrow.triangle.branch.circle"
+            }
         case .commit:
             "number.square"
         }
@@ -113,9 +120,11 @@ struct GitHubReferencePreviewMenuItemView: View {
         switch self.match.state {
         case .open:
             return Color(nsColor: .systemGreen)
+        case .merged:
+            return Color(nsColor: .systemPurple)
         case .closed:
             return self.match.kind == .pullRequest
-                ? Color(nsColor: .systemPurple)
+                ? Color(nsColor: .systemRed)
                 : Color(nsColor: .secondaryLabelColor)
         case nil:
             return Color(nsColor: .systemBlue)

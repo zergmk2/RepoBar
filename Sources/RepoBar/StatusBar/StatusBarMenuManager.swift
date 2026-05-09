@@ -794,7 +794,14 @@ private extension StatusBarMenuManager {
         case .issue:
             match.state == .closed ? "checkmark.circle" : "exclamationmark.circle"
         case .pullRequest:
-            match.state == .closed ? "arrow.triangle.merge" : "arrow.triangle.branch.circle"
+            switch match.state {
+            case .merged:
+                "arrow.triangle.merge"
+            case .closed:
+                "xmark.circle"
+            case .open, nil:
+                "arrow.triangle.branch.circle"
+            }
         case .commit:
             "number.square"
         }

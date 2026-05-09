@@ -17,11 +17,13 @@ public enum GitHubReferenceKind: String, Sendable, Hashable {
 public enum GitHubReferenceState: String, Sendable, Hashable {
     case open
     case closed
+    case merged
 
     public var label: String {
         switch self {
         case .open: "Open"
         case .closed: "Closed"
+        case .merged: "Merged"
         }
     }
 }
