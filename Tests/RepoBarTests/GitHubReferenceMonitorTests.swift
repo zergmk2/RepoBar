@@ -17,6 +17,10 @@ struct GitHubReferenceMonitorTests {
     @Test
     func `commit hashes become commit queries`() {
         #expect(GitHubReferenceMonitor.query(from: "ffd212ca43") == .commitHash("ffd212ca43"))
+        #expect(
+            GitHubReferenceMonitor.query(from: "d04517cefff3af339f560a8e388cacc3898e6562") ==
+                .commitHash("d04517cefff3af339f560a8e388cacc3898e6562")
+        )
         #expect(GitHubReferenceMonitor.query(from: "1234567") == .issueNumber(1_234_567))
         #expect(GitHubReferenceMonitor.query(from: "abcdef") == nil)
     }
@@ -42,6 +46,10 @@ struct GitHubReferenceMonitorTests {
         #expect(
             GitHubReferenceMonitor.query(from: "https://github.com/openclaw/openclaw/commits/ffd212ca43") ==
                 .repositoryCommitHash(repositoryFullName: "openclaw/openclaw", hash: "ffd212ca43")
+        )
+        #expect(
+            GitHubReferenceMonitor.query(from: "https://github.com/openclaw/openclaw/pull/57843/changes/d04517cefff3af339f560a8e388cacc3898e6562") ==
+                .repositoryCommitHash(repositoryFullName: "openclaw/openclaw", hash: "d04517cefff3af339f560a8e388cacc3898e6562")
         )
     }
 

@@ -93,6 +93,10 @@ final class GitHubReferenceMonitor {
         guard pathParts.count >= 4 else { return nil }
 
         let repositoryFullName = "\(pathParts[0])/\(pathParts[1])"
+        if let hash = self.commitHash(in: pathParts.dropFirst(2)) {
+            return .repositoryCommitHash(repositoryFullName: repositoryFullName, hash: hash)
+        }
+
         switch pathParts[2].lowercased() {
         case "issues", "pull":
             guard let number = Int(pathParts[3]) else { return nil }
@@ -106,6 +110,12 @@ final class GitHubReferenceMonitor {
         default:
             return nil
         }
+    }
+
+    private static func commitHash<S: Sequence>(in pathParts: S) -> String? where S.Element == String {
+        pathParts
+            .map { $0.lowercased() }
+            .first(where: self.isCommitHash)
     }
 
     private static func issueNumber(from token: String, minimumBareDigits: Int) -> Int? {
