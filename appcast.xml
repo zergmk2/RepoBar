@@ -3,6 +3,17 @@
     <channel>
         <title>RepoBar</title>
         <item>
+            <title>0.5.1</title>
+            <pubDate>Sun, 10 May 2026 00:42:02 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>0.5.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
+            <description><![CDATA[<ul><li>Let the GitHub reference monitor recognize multiple copied references at once, infer a surrounding `owner/repo` context for bare `#123` items, and group multiple resolved matches into submenus.</li><li>Infer the GitHub repository for bare references from copied local git paths like `~/Projects/crabbox`.</li><li>Prefer inferred local git repository context over incidental prose slash-words when resolving bare GitHub references.</li><li>Make GitHub reference updates feel faster with shorter clipboard polling, cached local path inference, and progressive concurrent lookups.</li><li>Grow inline GitHub reference previews on larger displays so more of the issue or pull request is visible in the menu.</li><li>Fix the iOS app target build by avoiding macOS-only filesystem and git APIs (#61, thanks @jsj).</li><li>Restore `pnpm restart` so it rebuilds and relaunches the debug app as documented (#60, thanks @biefan).</li></ul>
+]]></description>
+            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.5.1/RepoBar-0.5.1.zip" length="23106356" type="application/octet-stream" sparkle:edSignature="Cd7wpgXq3RgIZ56Ru+ogSWh2B0bDq7NLXpuu0csUXi8d/jnt/UqUQ9iHnVKTs5/ZS6ZNW1wfGO8QVaYHFRbJAg=="/>
+        </item>
+        <item>
             <title>0.5.0</title>
             <pubDate>Sat, 09 May 2026 08:41:52 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
@@ -23,17 +34,6 @@
             <description><![CDATA[<ul><li>Remove misleading page-size count badges from Releases, Discussions, Tags, Branches, and Contributors submenu rows.</li><li>Sort repository activity events by timestamp so repo submenus do not show stale activity when GitHub returns events out of order.</li><li>Refresh the RepoBar website with a cleaner minimal design, dark-mode support, and clearer install/setup copy.</li></ul>
 ]]></description>
             <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.4.2/RepoBar-0.4.2.zip" length="22630320" type="application/octet-stream" sparkle:edSignature="rXw06zq1dUrg4RCVFDvTChWgykucFmnSF//cZFL9TBlsXbL2765J06H+y14n/RlBvSIXLpYchlqo90Q9Xum2Dw=="/>
-        </item>
-        <item>
-            <title>0.4.1</title>
-            <pubDate>Tue, 05 May 2026 03:22:23 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
-            <sparkle:version>8</sparkle:version>
-            <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
-            <description><![CDATA[<ul><li>Add a menu bar GitHub rate-limit meter and a detailed GitHub Rate Limits menu with grouped resource buckets, progress bars, reset times, and GraphQL/API bucket data from GitHub&#x27;s `/rate_limit` endpoint.</li><li>Move GitHub rate-limit status above the repository filter bar, expose it from the profile submenu, and keep the menu bar meter, main menu row, CLI, and debug output on the same refreshed snapshot.</li><li>Widen and streamline the Repositories settings browser with cached row filtering, lighter visibility controls, and corrected issue/pull request counts when GitHub&#x27;s `open_issues_count` includes pull requests.</li><li>Keep hosted recent-list menu rows visible so the Open Actions submenu no longer opens blank.</li><li>Fix profile-submenu activity by merging cached per-repository `latestActivity` events when full activity arrays are not present.</li><li>Clarify endpoint cooldown messages so per-endpoint backoff does not look like a global GitHub rate-limit failure.</li><li>Add the RepoBar traffic-light emoji to the README title.</li></ul>
-]]></description>
-            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.4.1/RepoBar-0.4.1.zip" length="22587642" type="application/octet-stream" sparkle:edSignature="q/eGN86Wj6/FDSAxcFKY3NEiLrdoGgcgEBvi+v5+bFK0JBiFbTwR6a8Sv2jnTj0s5YSEbb/UQufHIzaO9cDDCg=="/>
         </item>
     </channel>
 </rss>
