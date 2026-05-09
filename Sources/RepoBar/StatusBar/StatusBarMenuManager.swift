@@ -758,9 +758,18 @@ private extension StatusBarMenuManager {
         let openItem = NSMenuItem(title: openTitle, action: #selector(self.openGitHubReferenceMatch(_:)), keyEquivalent: "")
         openItem.target = self
         openItem.representedObject = match.url
-        openItem.image = NSImage(systemSymbolName: self.gitHubReferenceSystemImage(for: match), accessibilityDescription: match.kind.label)
+        openItem.image = NSImage(systemSymbolName: "safari", accessibilityDescription: "Open in Browser")
         openItem.image?.isTemplate = true
         menu.addItem(openItem)
+
+        let copyItem = NSMenuItem(title: "Copy URL", action: #selector(self.copyGitHubReferenceURL(_:)), keyEquivalent: "")
+        copyItem.target = self
+        copyItem.representedObject = match.url
+        copyItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy URL")
+        copyItem.image?.isTemplate = true
+        menu.addItem(copyItem)
+
+        menu.addItem(.separator())
 
         let browserItem = NSMenuItem()
         let browserView = GitHubReferenceBrowserMenuItemView(match: match)
@@ -770,15 +779,6 @@ private extension StatusBarMenuManager {
         browserItem.view = browserView
         browserItem.toolTip = self.gitHubReferenceMenuTitle(for: match)
         menu.addItem(browserItem)
-
-        menu.addItem(.separator())
-
-        let copyItem = NSMenuItem(title: "Copy URL", action: #selector(self.copyGitHubReferenceURL(_:)), keyEquivalent: "")
-        copyItem.target = self
-        copyItem.representedObject = match.url
-        copyItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy URL")
-        copyItem.image?.isTemplate = true
-        menu.addItem(copyItem)
     }
 
     func gitHubReferenceMenuTitle(for match: GitHubReferenceMatch) -> String {

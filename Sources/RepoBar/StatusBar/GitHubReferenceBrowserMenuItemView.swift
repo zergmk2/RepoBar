@@ -6,7 +6,7 @@ import WebKit
 final class GitHubReferenceBrowserMenuItemView: NSView {
     private enum Metrics {
         static let width: CGFloat = 740
-        static let height: CGFloat = 520
+        static let height: CGFloat = 680
     }
 
     private let url: URL
