@@ -5,9 +5,22 @@ struct RepoListView: View {
     @Bindable var appModel: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showAddRepo = false
+    @State private var searchText = ""
 
     private var isGridLayout: Bool {
         horizontalSizeClass == .regular
+    }
+
+    private var filteredRepositories: [Repository] {
+        let search = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard search.isEmpty == false else { return appModel.session.repositories }
+
+        return appModel.session.repositories.filter { repo in
+            repo.fullName.localizedCaseInsensitiveContains(search)
+                || repo.latestRelease?.name.localizedCaseInsensitiveContains(search) == true
+                || repo.latestRelease?.tag.localizedCaseInsensitiveContains(search) == true
+                || repo.latestActivity?.title.localizedCaseInsensitiveContains(search) == true
+        }
     }
 
     var body: some View {
@@ -30,12 +43,21 @@ struct RepoListView: View {
                         heatmap: appModel.session.contributionHeatmap,
                         range: appModel.session.heatmapRange,
                         accentTone: appModel.session.settings.appearance.accentTone
-                    )
+                        )
+                }
+
+                GlassCard {
+                    Picker("Filter", selection: $appModel.session.repositoryFilter) {
+                        ForEach(RepositoryContentFilter.allCases) { filter in
+                            Text(filter.label).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
 
                 if isGridLayout {
                     LazyVGrid(columns: gridColumns, spacing: 16) {
-                        ForEach(appModel.session.repositories.map { RepositoryCardModel(repo: $0) }) { model in
+                        ForEach(filteredRepositories.map { RepositoryCardModel(repo: $0) }) { model in
                             NavigationLink {
                                 RepoDetailView(appModel: appModel, repository: model.source)
                             } label: {
@@ -46,7 +68,7 @@ struct RepoListView: View {
                     }
                 } else {
                     LazyVStack(spacing: 16) {
-                        ForEach(appModel.session.repositories.map { RepositoryCardModel(repo: $0) }) { model in
+                        ForEach(filteredRepositories.map { RepositoryCardModel(repo: $0) }) { model in
                             NavigationLink {
                                 RepoDetailView(appModel: appModel, repository: model.source)
                             } label: {
@@ -56,10 +78,23 @@ struct RepoListView: View {
                         }
                     }
                 }
+
+                if filteredRepositories.isEmpty, appModel.session.isRefreshing == false {
+                    ContentUnavailableView(
+                        "No repositories",
+                        systemImage: "tray",
+                        description: Text("Try another search, filter, or owner setting.")
+                    )
+                    .padding(.vertical, 36)
+                }
             }
             .padding(16)
         }
         .navigationTitle("Repos")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic))
+        .onChange(of: appModel.session.repositoryFilter) { _, _ in
+            appModel.requestRefresh(cancelInFlight: true)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

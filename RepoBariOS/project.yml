@@ -9,6 +9,9 @@ settings:
 packages:
   RepoBar:
     path: ..
+  Kingfisher:
+    url: https://github.com/onevcat/Kingfisher
+    from: 8.6.0
 targets:
   RepoBariOS:
     type: application
@@ -19,6 +22,8 @@ targets:
     dependencies:
       - package: RepoBar
         product: RepoBarCore
+      - package: Kingfisher
+        product: Kingfisher
     settings:
       base:
         DEVELOPMENT_TEAM: 2ZAC4GM7GD
@@ -43,5 +48,14 @@ targets:
         RepoBarKeychainAccessGroup: "$(AppIdentifierPrefix)com.steipete.repobar.shared"
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     frameworks:
       - AuthenticationServices

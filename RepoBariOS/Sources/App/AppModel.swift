@@ -114,6 +114,9 @@ final class AppModel {
         self.session.globalActivityEvents = []
         self.session.globalCommitEvents = []
         self.session.contributionHeatmap = []
+        self.session.referenceMatches = []
+        self.session.referenceError = nil
+        self.session.isResolvingReferences = false
         self.session.lastError = nil
     }
 
@@ -135,6 +138,11 @@ final class AppModel {
             self.session.globalActivityEvents = []
             self.session.globalCommitEvents = []
             self.session.contributionHeatmap = []
+            self.session.referenceMatches = []
+            self.session.referenceError = nil
+            self.session.isResolvingReferences = false
+            self.session.diagnostics = .empty
+            self.session.rateLimitError = nil
             self.session.lastError = nil
             return
         }
@@ -179,6 +187,7 @@ final class AppModel {
             self.session.globalActivityError = globalActivity.error
             self.session.globalCommitEvents = globalActivity.commits
             self.session.globalCommitError = globalActivity.commitError
+            await self.refreshRateLimits()
 
             if let message = await self.github.rateLimitMessage(now: now) {
                 self.session.lastError = message
@@ -188,6 +197,63 @@ final class AppModel {
         }
 
         self.session.isRefreshing = false
+    }
+
+    func refreshRateLimits() async {
+        guard self.auth.loadTokens() != nil else {
+            self.session.diagnostics = .empty
+            self.session.rateLimitError = nil
+            return
+        }
+
+        do {
+            _ = try await self.github.refreshRateLimitResources()
+            self.session.rateLimitError = nil
+        } catch {
+            self.session.rateLimitError = error.userFacingMessage
+        }
+        self.session.diagnostics = await self.github.diagnostics()
+    }
+
+    func resolveReferences(from text: String) async {
+        let queries = GitHubReferenceTranslator.queries(from: text)
+        guard queries.isEmpty == false else {
+            self.session.referenceMatches = []
+            self.session.referenceError = "No GitHub references found."
+            return
+        }
+
+        self.session.isResolvingReferences = true
+        self.session.referenceError = nil
+        let repositories = self.session.repositories
+        let github = self.github
+        let results = await withTaskGroup(of: (Int, GitHubReferenceMatch?).self) { group in
+            for (index, query) in queries.enumerated() {
+                group.addTask {
+                    let match = await Self.resolveReferenceMatch(
+                        query: query,
+                        github: github,
+                        repositories: repositories
+                    )
+                    return (index, match)
+                }
+            }
+
+            var matchesByIndex: [Int: GitHubReferenceMatch] = [:]
+            for await (index, match) in group {
+                if let match {
+                    matchesByIndex[index] = match
+                }
+            }
+            return queries.indices.compactMap { matchesByIndex[$0] }
+        }
+
+        var seenURLs: Set<URL> = []
+        self.session.referenceMatches = results.filter { seenURLs.insert($0.url).inserted }
+        self.session.referenceError = self.session.referenceMatches.isEmpty
+            ? "No visible matches for \(queries.map(\.displayText).joined(separator: ", "))."
+            : nil
+        self.session.isResolvingReferences = false
     }
 
     func addPinned(_ fullName: String) async {
@@ -227,14 +293,15 @@ final class AppModel {
 
     private func repoQuery(now: Date) -> RepositoryQuery {
         let settings = self.session.settings
+        let repositoryFilter = self.session.repositoryFilter
         let ageCutoff = RepositoryQueryDefaults.ageCutoff(
             now: now,
-            scope: .all,
+            scope: repositoryFilter.scope,
             ageDays: RepositoryQueryDefaults.defaultAgeDays
         )
         return RepositoryQuery(
-            scope: .all,
-            onlyWith: .none,
+            scope: repositoryFilter.scope,
+            onlyWith: repositoryFilter.onlyWith,
             includeForks: settings.repoList.showForks,
             includeArchived: settings.repoList.showArchived,
             sortKey: settings.repoList.menuSortKey,
@@ -242,8 +309,33 @@ final class AppModel {
             ageCutoff: ageCutoff,
             pinned: settings.repoList.pinnedRepositories,
             hidden: Set(settings.repoList.hiddenRepositories),
-            pinPriority: true
+            pinPriority: true,
+            ownerFilter: settings.repoList.ownerFilter
         )
+    }
+
+    private nonisolated static func resolveReferenceMatch(
+        query: GitHubReferenceQuery,
+        github: GitHubClient,
+        repositories: [Repository]
+    ) async -> GitHubReferenceMatch? {
+        let cachedMatches = await github.cachedReferenceMatches(
+            query: query,
+            repositories: repositories,
+            limit: query.repositoryFullName == nil ? 20 : 5
+        )
+        if let match = GitHubReferenceMatch.newestCreated(in: cachedMatches) {
+            return match
+        }
+
+        if query.repositoryFullName != nil {
+            return await github.liveReferenceMatch(query: query)
+        }
+        if repositories.isEmpty == false,
+           let match = await github.liveReferenceMatch(query: query, repositories: repositories) {
+            return match
+        }
+        return await github.liveReferenceMatch(query: query)
     }
 
     private func fetchMissingPinned(from repos: [Repository]) async -> [Repository] {

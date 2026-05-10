@@ -35,6 +35,11 @@ struct RootView: View {
                 .tabItem { Label("Activity", systemImage: "bolt.heart") }
 
                 NavigationStack {
+                    StatusView(appModel: appModel)
+                }
+                .tabItem { Label("Status", systemImage: "gauge.with.dots.needle.67percent") }
+
+                NavigationStack {
                     SettingsView(appModel: appModel)
                 }
                 .tabItem { Label("Settings", systemImage: "gearshape") }
