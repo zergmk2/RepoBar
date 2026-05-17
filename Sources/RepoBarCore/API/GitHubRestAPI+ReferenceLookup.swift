@@ -10,7 +10,7 @@ private let liveReferenceLookupConcurrencyLimit = 8
 
 extension GitHubRestAPI {
     func cachedReferenceMatches(query: GitHubReferenceQuery, repositories: [Repository], limit: Int) async -> [GitHubReferenceMatch] {
-        guard let cache = HTTPResponseDiskCache.standard() else { return [] }
+        guard let cache = self.responseDiskCache else { return [] }
 
         let context = await GitHubReferenceCacheLookupContext(
             baseURL: apiHost(),
@@ -88,7 +88,12 @@ extension GitHubRestAPI {
         context: GitHubReferenceCacheLookupContext
     ) -> [GitHubReferenceMatch] {
         var matches: [GitHubReferenceMatch] = []
-        let issueURLs = self.cachedRecentIssueURLs(baseURL: context.baseURL, owner: repo.owner, name: repo.name)
+        let issueURLs = self.cachedRecentIssueURLs(
+            baseURL: context.baseURL,
+            owner: repo.owner,
+            name: repo.name,
+            includeAdditionalPages: !query.hasRepositoryHint
+        )
         for url in issueURLs {
             guard let cached = context.cache.cached(url: url),
                   let issues = try? GitHubRecentDecoders.decodeRecentIssues(from: cached.data)
@@ -108,7 +113,13 @@ extension GitHubRestAPI {
             })
         }
 
-        let pullURLs = self.cachedRecentPullRequestURLs(baseURL: context.baseURL, owner: repo.owner, name: repo.name, limit: context.limit)
+        let pullURLs = self.cachedRecentPullRequestURLs(
+            baseURL: context.baseURL,
+            owner: repo.owner,
+            name: repo.name,
+            limit: context.limit,
+            includeFallbackLimits: !query.hasRepositoryHint
+        )
         for url in pullURLs {
             guard let cached = context.cache.cached(url: url),
                   let pulls = try? GitHubRecentDecoders.decodeRecentPullRequests(from: cached.data)
@@ -136,7 +147,13 @@ extension GitHubRestAPI {
         repo: Repository,
         context: GitHubReferenceCacheLookupContext
     ) -> [GitHubReferenceMatch] {
-        let urls = self.cachedRecentWorkflowRunURLs(baseURL: context.baseURL, owner: repo.owner, name: repo.name, limit: context.limit)
+        let urls = self.cachedRecentWorkflowRunURLs(
+            baseURL: context.baseURL,
+            owner: repo.owner,
+            name: repo.name,
+            limit: context.limit,
+            includeFallbackLimits: !query.hasRepositoryHint
+        )
         var matches: [GitHubReferenceMatch] = []
         for url in urls {
             guard let cached = context.cache.cached(url: url),
@@ -168,7 +185,13 @@ extension GitHubRestAPI {
         context: GitHubReferenceCacheLookupContext
     ) -> [GitHubReferenceMatch] {
         let normalized = hash.lowercased()
-        let urls = self.cachedRecentCommitURLs(baseURL: context.baseURL, owner: repo.owner, name: repo.name, limit: context.limit)
+        let urls = self.cachedRecentCommitURLs(
+            baseURL: context.baseURL,
+            owner: repo.owner,
+            name: repo.name,
+            limit: context.limit,
+            includeFallbackLimits: !query.hasRepositoryHint
+        )
         var matches: [GitHubReferenceMatch] = []
         for url in urls {
             guard let cached = context.cache.cached(url: url),
@@ -294,8 +317,9 @@ extension GitHubRestAPI {
         return data
     }
 
-    private func cachedRecentIssueURLs(baseURL: URL, owner: String, name: String) -> [URL] {
-        (1 ... 3).compactMap { page in
+    private func cachedRecentIssueURLs(baseURL: URL, owner: String, name: String, includeAdditionalPages: Bool) -> [URL] {
+        let pages = includeAdditionalPages ? Array(1 ... 3) : [1]
+        return pages.compactMap { page in
             var components = URLComponents(url: baseURL.appending(path: "/repos/\(owner)/\(name)/issues"), resolvingAgainstBaseURL: false)!
             components.queryItems = [
                 URLQueryItem(name: "state", value: "open"),
@@ -308,8 +332,9 @@ extension GitHubRestAPI {
         }
     }
 
-    private func cachedRecentPullRequestURLs(baseURL: URL, owner: String, name: String, limit: Int) -> [URL] {
-        let limits = Array(Set([max(1, min(limit, 100)), 20, 100])).sorted()
+    private func cachedRecentPullRequestURLs(baseURL: URL, owner: String, name: String, limit: Int, includeFallbackLimits: Bool) -> [URL] {
+        let primaryLimit = max(1, min(limit, 100))
+        let limits = includeFallbackLimits ? Array(Set([primaryLimit, 20, 100])).sorted() : [primaryLimit]
         return limits.compactMap { limit in
             var components = URLComponents(url: baseURL.appending(path: "/repos/\(owner)/\(name)/pulls"), resolvingAgainstBaseURL: false)!
             components.queryItems = [
@@ -322,8 +347,9 @@ extension GitHubRestAPI {
         }
     }
 
-    private func cachedRecentCommitURLs(baseURL: URL, owner: String, name: String, limit: Int) -> [URL] {
-        let limits = Array(Set([max(1, min(limit, 100)), 20, 100])).sorted()
+    private func cachedRecentCommitURLs(baseURL: URL, owner: String, name: String, limit: Int, includeFallbackLimits: Bool) -> [URL] {
+        let primaryLimit = max(1, min(limit, 100))
+        let limits = includeFallbackLimits ? Array(Set([primaryLimit, 20, 100])).sorted() : [primaryLimit]
         return limits.compactMap { limit in
             var components = URLComponents(url: baseURL.appending(path: "/repos/\(owner)/\(name)/commits"), resolvingAgainstBaseURL: false)!
             components.queryItems = [URLQueryItem(name: "per_page", value: "\(limit)")]
@@ -331,8 +357,9 @@ extension GitHubRestAPI {
         }
     }
 
-    private func cachedRecentWorkflowRunURLs(baseURL: URL, owner: String, name: String, limit: Int) -> [URL] {
-        let limits = Array(Set([max(1, min(limit, 100)), 20, 100])).sorted()
+    private func cachedRecentWorkflowRunURLs(baseURL: URL, owner: String, name: String, limit: Int, includeFallbackLimits: Bool) -> [URL] {
+        let primaryLimit = max(1, min(limit, 100))
+        let limits = includeFallbackLimits ? Array(Set([primaryLimit, 20, 100])).sorted() : [primaryLimit]
         return limits.compactMap { limit in
             var components = URLComponents(url: baseURL.appending(path: "/repos/\(owner)/\(name)/actions/runs"), resolvingAgainstBaseURL: false)!
             components.queryItems = [URLQueryItem(name: "per_page", value: "\(limit)")]
@@ -377,6 +404,10 @@ extension GitHubRestAPI {
 }
 
 private extension GitHubReferenceQuery {
+    var hasRepositoryHint: Bool {
+        self.repositoryFullName != nil || self.repositoryName != nil
+    }
+
     func matches(repo: Repository) -> Bool {
         if let repositoryFullName {
             return repo.fullName.caseInsensitiveCompare(repositoryFullName) == .orderedSame

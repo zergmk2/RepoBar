@@ -10,6 +10,7 @@ struct GitHubRestAPI {
     let tokenProvider: @Sendable () async throws -> String
     let requestRunner: GitHubRequestRunner
     let diag: DiagnosticsLogger
+    let responseDiskCache: HTTPResponseDiskCache? = HTTPResponseDiskCache.standard()
 
     static func userReposQueryItems() -> [URLQueryItem] {
         [
@@ -40,7 +41,7 @@ struct GitHubRestAPI {
     }
 
     func cachedUserReposPaginated(limit: Int?) async throws -> [RepoItem] {
-        guard let cache = HTTPResponseDiskCache.standard() else { return [] }
+        guard let cache = self.responseDiskCache else { return [] }
 
         let pageSize = 100
         let baseURL = await apiHost()

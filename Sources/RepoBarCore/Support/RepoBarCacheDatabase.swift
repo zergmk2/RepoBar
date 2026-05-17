@@ -111,7 +111,8 @@ public enum RepoBarCacheError: Error, LocalizedError {
     }
 }
 
-final class HTTPResponseDiskCache {
+/// DatabaseQueue serializes access; GitHub lookup task groups share this cache.
+final class HTTPResponseDiskCache: @unchecked Sendable {
     private let queue: DatabaseQueue
     private let path: String
     private let clock: @Sendable () -> Date

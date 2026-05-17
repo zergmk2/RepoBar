@@ -813,9 +813,6 @@ private extension StatusBarMenuManager {
 
         let browserItem = NSMenuItem()
         let browserView = GitHubReferenceBrowserMenuItemView(match: match)
-        if self.shouldPreloadGitHubReferenceBrowserPreview, self.appState.session.gitHubReferenceMatches.count <= 1 {
-            browserView.preload()
-        }
         browserItem.view = browserView
         browserItem.toolTip = self.gitHubReferenceMenuTitle(for: match)
         menu.addItem(browserItem)
@@ -845,10 +842,6 @@ private extension StatusBarMenuManager {
         }
 
         self.populateGitHubReferenceMenu(menu, matches: self.appState.session.gitHubReferenceMatches)
-    }
-
-    var shouldPreloadGitHubReferenceBrowserPreview: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
     }
 
     func gitHubReferenceSystemImage(for match: GitHubReferenceMatch) -> String {

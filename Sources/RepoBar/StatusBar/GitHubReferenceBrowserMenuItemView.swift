@@ -15,7 +15,7 @@ final class GitHubReferenceBrowserMenuItemView: NSView {
 
     private let url: URL
     private let displayText: String
-    private let webView: WKWebView?
+    private var webView: WKWebView?
     private var backButton: NSButton?
     private let preferredSize: NSSize
     private var hasLoaded = false
@@ -28,16 +28,7 @@ final class GitHubReferenceBrowserMenuItemView: NSView {
         self.url = match.url
         self.displayText = match.query.displayText
         self.preferredSize = Self.preferredSize()
-        if Self.shouldCreateWebView {
-            let configuration = WKWebViewConfiguration()
-            configuration.websiteDataStore = .default()
-            configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
-            self.webView = WKWebView(frame: .zero, configuration: configuration)
-        } else {
-            self.webView = nil
-        }
         super.init(frame: NSRect(origin: .zero, size: self.preferredSize))
-        self.configureView()
     }
 
     @available(*, unavailable)
@@ -47,17 +38,16 @@ final class GitHubReferenceBrowserMenuItemView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        guard self.window != nil else { return }
+        guard self.window != nil else {
+            self.tearDownWebView()
+            return
+        }
 
         self.loadIfNeeded()
     }
 
-    func preload() {
-        self.loadIfNeeded()
-    }
-
-    private func configureView() {
-        guard let webView = self.webView else { return }
+    private func installWebView(_ webView: WKWebView) {
+        self.subviews.forEach { $0.removeFromSuperview() }
 
         let header = self.makeHeaderView()
         header.translatesAutoresizingMaskIntoConstraints = false
@@ -78,6 +68,19 @@ final class GitHubReferenceBrowserMenuItemView: NSView {
             webView.topAnchor.constraint(equalTo: header.bottomAnchor),
             webView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
         ])
+    }
+
+    private func tearDownWebView() {
+        guard let webView else { return }
+
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.uiDelegate = nil
+        webView.removeFromSuperview()
+        self.subviews.forEach { $0.removeFromSuperview() }
+        self.webView = nil
+        self.backButton = nil
+        self.hasLoaded = false
     }
 
     private func makeHeaderView() -> NSView {
@@ -138,10 +141,26 @@ final class GitHubReferenceBrowserMenuItemView: NSView {
     }
 
     private func loadIfNeeded() {
-        guard !self.hasLoaded, let webView = self.webView else { return }
+        guard !self.hasLoaded, let webView = self.ensureWebView() else { return }
 
         self.hasLoaded = true
         webView.load(URLRequest(url: self.url))
+    }
+
+    private func ensureWebView() -> WKWebView? {
+        if let webView {
+            return webView
+        }
+        guard Self.shouldCreateWebView else { return nil }
+
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        self.webView = webView
+        self.installWebView(webView)
+        return webView
     }
 
     private static var shouldCreateWebView: Bool {

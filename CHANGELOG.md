@@ -2,7 +2,7 @@
 
 ## 0.6.2 - Unreleased
 
-- Reduce idle and Issue Navigator CPU use by coalescing timers, limiting WebKit preview preloads, and tearing down previews when the window closes.
+- Reduce idle and Issue Navigator CPU use by coalescing timers, limiting WebKit preview preloads, lazy-loading menu previews, and tearing down previews when windows close.
 
 ## 0.6.1 - 2026-05-17
 
