@@ -2,7 +2,7 @@
 
 ## 0.6.2 - Unreleased
 
-- Reduce idle and Issue Navigator CPU use by coalescing timers, warming previews only while menus or windows are open, and tearing down previews when windows close, while keeping clipboard detection responsive.
+- Reduce idle and Issue Navigator CPU use by coalescing timers, polling copied references at background priority, warming previews only while menus or windows are open, and tearing down previews when windows close, while keeping clipboard detection responsive.
 
 ## 0.6.1 - 2026-05-17
 
