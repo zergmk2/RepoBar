@@ -31,7 +31,7 @@ enum AppLimits {
 
     enum GitHubReferenceMonitor {
         static let minimumBareDigits = 1
-        static let queryLimit = 8
+        static let queryLimit = 24
         static let resolutionConcurrencyLimit = 4
         static let cacheLookupLimit = 20
         static let liveLookupLimit = 80

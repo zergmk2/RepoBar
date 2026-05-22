@@ -266,6 +266,57 @@ struct GitHubReferenceMonitorTests {
     }
 
     @Test
+    func `multiple parser prioritizes copied triage list references`() {
+        let text = """
+         State: main, clean, pulled. Open PRs: none. Open issues: 12.
+
+          Best Next Work
+
+          - #597 keyring locking: Fit good; risk medium auth storage; proof source-level strong; next implement first. Foundation for #596.
+          - #620 Gmail search attachments JSON: Fit good; risk low; proof source confirms messageItem drops attachments; next small PR + regression test.
+          - #621 XDG kind paths: Fit good; risk medium migration/storage paths; proof source confirms config-dir conflation; next design/implement with read-legacy/write-new.
+          - #600 service-account key stdin/env: Fit good; risk low-medium secrets intake; proof source likely direct file read; next implement after agreeing flag shape.
+          - #461/#460 People API disabled: Fit good bug; risk low; PR #462 closed unmerged.
+            Next fix #461, close #460 as duplicate/noisy repro.
+
+          Needs Maintainer Decision
+
+          - #596 store Google OAuth client_secret in keyring: valid security hardening; risk medium storage contract.
+            Blocker: default flip, legacy opt-out, diagnostics, sequence after #597.
+          - #622 GOG_HOME / per-kind dirs: good operator feature, but depends on #621. Blocker: layout/validation/flag semantics.
+          - #599 ${VAR} interpolation in credentials JSON: useful but behavior-sensitive. Blocker: opt-in --expand-env vs always-on, missing-var semantics.
+          - #598 seed initial access token: reasonable perf/ergonomics; lower priority than storage safety.
+            Blocker: expiry contract and whether rotated access tokens should persist.
+          - #585 Docs anchored comments UI workaround: real Google API gap, but plugin/browser automation scope.
+            Next: document OpenClaw browser workaround or defer from CLI proper.
+          - #588 official OpenClaw plugin: poor/mixed fit until concrete plugin-only benefit is stated.
+            Next: ask reporter to answer maintainer’s existing “what benefit over CLI?” question.
+
+          gpt-5.5 high fast · ~/Projects/gogcli
+        """
+        let displayTexts = GitHubReferenceTranslator.queries(
+            from: text,
+            repositoryContextOverride: "openclaw/gogcli"
+        ).map(\.displayText)
+
+        #expect(Array(displayTexts.prefix(12)) == [
+            "openclaw/gogcli#597",
+            "openclaw/gogcli#620",
+            "openclaw/gogcli#621",
+            "openclaw/gogcli#600",
+            "openclaw/gogcli#461",
+            "openclaw/gogcli#460",
+            "openclaw/gogcli#596",
+            "openclaw/gogcli#622",
+            "openclaw/gogcli#599",
+            "openclaw/gogcli#598",
+            "openclaw/gogcli#585",
+            "openclaw/gogcli#588"
+        ])
+        #expect(displayTexts.contains("openclaw/gogcli#12") == false)
+    }
+
+    @Test
     func `bare pr references inherit selected repository list item context`() {
         let text = """
         1. openclaw/Peekaboo
@@ -346,6 +397,11 @@ struct GitHubReferenceMonitorTests {
     func `contextual bare issue parser ignores incidental sentence numbers`() {
         #expect(GitHubReferenceTranslator.queries(from: "please review PR 68 with 2 commits") == [.issueNumber(68)])
         #expect(GitHubReferenceTranslator.queries(from: "please review PR 123 on iOS 26") == [.issueNumber(123)])
+        #expect(GitHubReferenceTranslator.queries(from: "Open PR: 123") == [.issueNumber(123)])
+        #expect(GitHubReferenceTranslator.queries(from: "Closed issue: 12") == [.issueNumber(12)])
+        #expect(GitHubReferenceTranslator.queries(from: "Open PRs: 123, 456") == [.issueNumber(123), .issueNumber(456)])
+        #expect(GitHubReferenceTranslator.queries(from: "Closed issues: 12 and 13") == [.issueNumber(12), .issueNumber(13)])
+        #expect(GitHubReferenceTranslator.queries(from: "Open issues: 12").isEmpty)
         #expect(GitHubReferenceTranslator.queries(from: "this PR has 2 commits").isEmpty)
         #expect(GitHubReferenceTranslator.queries(from: "I have issues with 2 things").isEmpty)
     }

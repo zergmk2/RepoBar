@@ -37,11 +37,11 @@ public enum GitHubReferenceTranslator {
         let repositoryContext = repositoryContextOverride
             ?? self.repositoryContext(in: tokens)
             ?? self.listItemRepositoryContext(in: text)
+        let primaryListQueries = self.primaryListItemQueries(
+            in: text,
+            repositoryContext: repositoryContext
+        )
         if tokens.contains(where: { self.urlQuery(from: $0) != nil }) {
-            let primaryListQueries = self.primaryListItemQueries(
-                in: text,
-                repositoryContext: repositoryContext
-            )
             if primaryListQueries.count >= 2 {
                 return primaryListQueries
             }
@@ -53,6 +53,12 @@ public enum GitHubReferenceTranslator {
             guard seen.insert(self.dedupeKey(for: query)).inserted else { return }
 
             queries.append(query)
+        }
+
+        if primaryListQueries.count >= 2 {
+            for query in primaryListQueries {
+                append(query)
+            }
         }
 
         for token in tokens {
@@ -110,6 +116,11 @@ public enum GitHubReferenceTranslator {
             }
 
             for sentence in self.sentenceFragments(in: line) {
+                if self.isIssueCountSummary(sentence) {
+                    previousHadReferenceContext = false
+                    continue
+                }
+
                 let hasContext = self.hasIssueReferenceContext(sentence)
                 defer { previousHadReferenceContext = hasContext }
 
@@ -231,6 +242,14 @@ public enum GitHubReferenceTranslator {
 
             if let query = self.urlQuery(from: firstToken) {
                 append(query)
+                continue
+            }
+
+            let bareSeriesQueries = self.compoundBareIssueQueries(from: firstToken)
+            if bareSeriesQueries.isEmpty == false {
+                bareSeriesQueries
+                    .map { self.applyingRepositoryContext(repositoryContext, to: $0) }
+                    .forEach(append)
                 continue
             }
 
@@ -481,6 +500,28 @@ public enum GitHubReferenceTranslator {
         return [number]
     }
 
+    private static func compoundBareIssueQueries(from token: String) -> [GitHubReferenceQuery] {
+        guard token.hasPrefix("#"),
+              token.contains("/") || token.contains("-")
+        else { return [] }
+
+        let numberParts = token
+            .split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        guard numberParts.isEmpty == false else { return [] }
+
+        var numbers: [Int] = []
+        for numberPart in numberParts {
+            guard let parsedNumbers = self.issueNumbers(fromSeriesPart: numberPart)
+            else { return [] }
+
+            numbers.append(contentsOf: parsedNumbers)
+        }
+        guard (1 ... Self.maxIssueSeriesCount).contains(numbers.count) else { return [] }
+
+        return numbers.map { .issueNumber($0) }
+    }
+
     private static func issueSeriesNumber(from rawNumber: String) -> Int? {
         let normalized = rawNumber.hasPrefix("#") ? String(rawNumber.dropFirst()) : rawNumber
         guard normalized.isEmpty == false,
@@ -577,6 +618,28 @@ public enum GitHubReferenceTranslator {
         return normalized.contains("pull request")
             || normalized.contains("security fix")
             || normalized.contains("fix/enhancement")
+    }
+
+    private static func isIssueCountSummary(_ text: String) -> Bool {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalized.contains(":") else { return false }
+
+        let tokens = self.referenceTokens(in: normalized)
+        guard tokens.count >= 2,
+              ["open", "closed"].contains(tokens[0]),
+              ["prs", "issues"].contains(tokens[1])
+        else { return false }
+
+        if tokens.dropFirst(2).contains(where: { token in
+            self.issueNumber(from: token, minimumBareDigits: 1, allowBareNumber: false) != nil
+        }) {
+            return false
+        }
+
+        let bareNumbers = tokens.dropFirst(2).compactMap { token in
+            self.issueNumber(from: token, minimumBareDigits: 1, allowBareNumber: true)
+        }
+        return bareNumbers.count <= 1
     }
 
     private static func startsWithBackReference(_ text: String) -> Bool {

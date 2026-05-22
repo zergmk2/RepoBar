@@ -2,6 +2,8 @@
 
 ## 0.6.3 - Unreleased
 
+- Improve copied GitHub reference parsing for maintainer triage lists so bullet-leading references stay prioritized, compound issue lists resolve, and status counts are ignored.
+
 ## 0.6.2 - 2026-05-20
 
 - Reduce idle and Issue Navigator CPU use by coalescing timers, polling copied references at background priority, warming previews only while menus or windows are open, and tearing down previews when windows close, while keeping clipboard detection responsive.
