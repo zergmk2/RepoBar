@@ -2,6 +2,8 @@
 
 ## 0.6.4 - Unreleased
 
+- Read the GitHub reference watcher clipboard contents on the main thread to avoid an AppKit pasteboard crash on macOS 26.5.
+
 ## 0.6.3 - 2026-05-22
 
 - Make the Settings Repository table columns sortable (thanks @XueshiQiao).

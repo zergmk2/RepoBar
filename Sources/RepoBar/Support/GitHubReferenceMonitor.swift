@@ -104,21 +104,48 @@ private final class PasteboardTextPoller: @unchecked Sendable {
     }
 
     private func tick() {
-        let changeCount = self.pasteboard.changeCount
-        guard changeCount != self.lastChangeCount else { return }
-
-        self.lastChangeCount = changeCount
-        self.queue.asyncAfter(deadline: .now() + self.graceDelay) { [weak self] in
+        self.readPasteboardChangeCount { [weak self] changeCount in
             guard let self else { return }
-            guard changeCount == self.pasteboard.changeCount else { return }
-            guard let text = self.readPasteboardText() else { return }
+            guard changeCount != self.lastChangeCount else { return }
 
-            self.onText(text)
+            self.lastChangeCount = changeCount
+            self.queue.asyncAfter(deadline: .now() + self.graceDelay) { [weak self] in
+                guard let self else { return }
+
+                self.readPasteboardSnapshot { [weak self] delayedSnapshot in
+                    guard let self else { return }
+                    guard changeCount == delayedSnapshot.changeCount else { return }
+                    guard let text = delayedSnapshot.text else { return }
+
+                    self.onText(text)
+                }
+            }
         }
     }
 
-    private func readPasteboardText() -> String? {
-        if let direct = self.pasteboard.string(forType: .string) {
+    private func readPasteboardChangeCount(_ completion: @escaping @Sendable (Int) -> Void) {
+        DispatchQueue.main.async { [pasteboard = self.pasteboard, queue = self.queue] in
+            let changeCount = pasteboard.changeCount
+            queue.async {
+                completion(changeCount)
+            }
+        }
+    }
+
+    private func readPasteboardSnapshot(_ completion: @escaping @Sendable (PasteboardSnapshot) -> Void) {
+        DispatchQueue.main.async { [pasteboard = self.pasteboard, queue = self.queue] in
+            let snapshot = PasteboardSnapshot(
+                changeCount: pasteboard.changeCount,
+                text: Self.readPasteboardText(from: pasteboard)
+            )
+            queue.async {
+                completion(snapshot)
+            }
+        }
+    }
+
+    private static func readPasteboardText(from pasteboard: NSPasteboard) -> String? {
+        if let direct = pasteboard.string(forType: .string) {
             return direct
         }
 
@@ -127,7 +154,7 @@ private final class PasteboardTextPoller: @unchecked Sendable {
             .init("public.utf16-external-plain-text"),
             .init("public.text")
         ]
-        for item in self.pasteboard.pasteboardItems ?? [] {
+        for item in pasteboard.pasteboardItems ?? [] {
             for type in preferredTypes {
                 if let value = item.string(forType: type) {
                     return value
@@ -136,4 +163,9 @@ private final class PasteboardTextPoller: @unchecked Sendable {
         }
         return nil
     }
+}
+
+private struct PasteboardSnapshot {
+    let changeCount: Int
+    let text: String?
 }
