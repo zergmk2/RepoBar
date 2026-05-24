@@ -3,6 +3,25 @@
     <channel>
         <title>RepoBar</title>
         <item>
+            <title>0.6.5</title>
+            <pubDate>Sun, 24 May 2026 05:16:24 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>0.6.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>RepoBar 0.6.5</h2>
+<ul>
+<li>Reduce GitHub pressure by throttling REST/GraphQL request lanes, moving repo count/release hydration to GraphQL, and fetching commit-activity heatmaps only for visible rows with a daily TTL.</li>
+<li>Keep REST core rate-limit diagnostics focused on the shared quota instead of filling Current Blocker with per-request cooldown rows.</li>
+<li>Keep copied triage lists with leading bare GitHub references from inheriting incidental repository paths mentioned later in item descriptions.</li>
+<li>Show copied GitHub URL previews immediately with loading placeholders, then update each entry as GitHub metadata resolves.</li>
+<li>Recognize copied repo-heading triage blocks like <code>owner/repo: 1 issue / 1 PR</code> followed by indented <code>#123</code> references.</li>
+</ul>
+<p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.6.5/RepoBar-0.6.5.zip" length="24983221" type="application/octet-stream" sparkle:edSignature="xSkGWwfZlico5g2ugOQ2kE5DofeABRpM9FR6hfCWSeyP0YFoJPEuaP/yomYD99ENUTwS5hPsdJgB3dkAAh2dBg=="/>
+        </item>
+        <item>
             <title>0.6.4</title>
             <pubDate>Fri, 22 May 2026 19:37:32 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
@@ -32,21 +51,6 @@
 <p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.6.3/RepoBar-0.6.3.zip" length="24724467" type="application/octet-stream" sparkle:edSignature="Mp9npRjgfYDdlCbk+pjU4mV86mkxOFH7KxLKJeBGJ321f/iYhSBbQU/Qdd/Q18hkCCtP2jBngRLIKT9vcSI1Bg=="/>
-        </item>
-        <item>
-            <title>0.6.2</title>
-            <pubDate>Thu, 21 May 2026 22:12:03 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
-            <sparkle:version>15</sparkle:version>
-            <sparkle:shortVersionString>0.6.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>RepoBar 0.6.2</h2>
-<ul>
-<li>Reduce idle and Issue Navigator CPU use by coalescing timers, polling copied references at background priority, warming previews only while menus or windows are open, and tearing down previews when windows close, while keeping clipboard detection responsive.</li>
-</ul>
-<p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.6.2/RepoBar-0.6.2.zip" length="24706222" type="application/octet-stream" sparkle:edSignature="jHJC/Jk8QMad5WiGBxKRmSS9OQWE5w8M4ehb3KsQ44ZbbKzNtmLpkbD5133Bf8ZjEUfY7/cDslRxnrO0wHBsAA=="/>
         </item>
     </channel>
 </rss>
