@@ -5,6 +5,7 @@
 - Open multi-reference GitHub detections in Issue Navigator on left click while keeping the preview menu on right click.
 - Open Issue Navigator larger by default while clamping it to the visible screen.
 - Add embedded Issue Navigator browser back navigation and reload an already-selected sidebar entry back to its original GitHub URL.
+- Preload the first embedded Issue Navigator browser preview when the clipboard resolves to multiple GitHub references.
 
 ## 0.6.5 - 2026-05-24
 

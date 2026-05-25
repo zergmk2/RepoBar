@@ -19,6 +19,7 @@ final class IssueNavigatorWindowController: NSObject, NSWindowDelegate {
     private var previousActivationPolicy: NSApplication.ActivationPolicy?
     private var closeCleanupTask: Task<Void, Never>?
     private var presentationID = UUID()
+    private let browserStore = IssueNavigatorBrowserStore()
 
     init(appState: AppState) {
         self.appState = appState
@@ -32,7 +33,7 @@ final class IssueNavigatorWindowController: NSObject, NSWindowDelegate {
         self.showDockIcon()
 
         if self.window == nil {
-            let rootView = IssueNavigatorView(appState: self.appState, initialMatches: matches)
+            let rootView = self.makeIssueNavigatorView(matches: matches)
             let hosting = NSHostingController(rootView: rootView)
             let window = NSWindow(contentViewController: hosting)
             window.styleMask = [.titled, .closable, .resizable, .miniaturizable]
@@ -48,12 +49,27 @@ final class IssueNavigatorWindowController: NSObject, NSWindowDelegate {
             self.window = window
         } else if matches.isEmpty == false {
             self.window?.contentViewController = NSHostingController(
-                rootView: IssueNavigatorView(appState: self.appState, initialMatches: matches)
+                rootView: self.makeIssueNavigatorView(matches: matches)
             )
         }
 
         self.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func preloadFirstPreview(for matches: [GitHubReferenceMatch]) {
+        let orderedMatches = matches.issueNavigatorOrderPreservingDeduped()
+        guard orderedMatches.count > 1, let firstURL = orderedMatches.first?.url else { return }
+
+        self.browserStore.preload(firstURL)
+    }
+
+    private func makeIssueNavigatorView(matches: [GitHubReferenceMatch]) -> IssueNavigatorView {
+        IssueNavigatorView(
+            appState: self.appState,
+            initialMatches: matches,
+            browserStore: self.browserStore
+        )
     }
 
     private static func clampedContentSize(_ contentSize: NSSize, for window: NSWindow) -> NSSize {

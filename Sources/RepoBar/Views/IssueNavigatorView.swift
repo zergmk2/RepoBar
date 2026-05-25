@@ -25,8 +25,8 @@ struct IssueNavigatorView: View {
     @State private var searchGeneration = UUID()
     @State private var clipboardText: String?
     @State private var clipboardQueries: [GitHubReferenceQuery] = []
-    @State private var browserStore = IssueNavigatorBrowserStore()
     @State private var browserNavigationVersion = 0
+    private let browserStore: IssueNavigatorBrowserStore
 
     private var repositories: [Repository] {
         self.appState.gitHubReferenceRepositories()
@@ -42,9 +42,14 @@ struct IssueNavigatorView: View {
         return self.results.first { $0.url == selectedURL } ?? self.results.first
     }
 
-    init(appState: AppState, initialMatches: [GitHubReferenceMatch] = []) {
+    init(
+        appState: AppState,
+        initialMatches: [GitHubReferenceMatch] = [],
+        browserStore: IssueNavigatorBrowserStore
+    ) {
         let matches = initialMatches.issueNavigatorOrderPreservingDeduped()
         self.appState = appState
+        self.browserStore = browserStore
         self._results = State(initialValue: matches)
         self._selectedURL = State(initialValue: matches.first?.url)
         self._statusText = State(initialValue: matches.isEmpty ? "Loading recent issues and pull requests." : "References in pasted order")

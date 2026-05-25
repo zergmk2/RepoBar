@@ -222,6 +222,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
             guard !Task.isCancelled else { return }
 
             self?.gitHubReferenceSyncTask = nil
+            self?.preloadIssueNavigatorPreviewForCurrentGitHubReferences()
             self?.syncGitHubReferenceStatusItem()
         }
     }
@@ -761,6 +762,12 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
 }
 
 extension StatusBarMenuManager {
+    func preloadIssueNavigatorPreviewForCurrentGitHubReferences() {
+        self.issueNavigatorWindowController.preloadFirstPreview(
+            for: self.appState.session.gitHubReferenceMatches
+        )
+    }
+
     @objc func openGitHubReferenceMatchesInIssueNavigator() {
         guard self.appState.session.account.isLoggedIn else {
             self.signIn()
