@@ -23,7 +23,7 @@ The auth surface is hardwired around one account in these places:
 - `Session` (`Sources/RepoBar/App/Session.swift`) holds one `AccountState` and one `accessibleRepositories` / `repositories` list.
 - `UserSettings` (`Sources/RepoBarCore/Settings/UserSettings.swift`) carries single `githubHost`, `enterpriseHost`, `authMethod`, and `loopbackPort` fields.
 - `AppState` (`Sources/RepoBar/App/AppState.swift`) owns one `OAuthCoordinator`, one `PATAuthenticator`, one `GitHubClient`, and a token-refresh task that assumes "the" account.
-- The persistent cache (`Sources/RepoBarCore/Support/RepoBarCacheDatabase.swift`) lives at one path, `~/Library/Application Support/RepoBar/Cache.sqlite`, and is not partitioned by account.
+- The persistent cache (`Sources/RepoBarCore/Support/RepoBarCacheDatabase.swift`) is exposed through `RepoBarPersistentCache.standardDatabaseURL` and backed internally by `HTTPResponseDiskCache.standardDatabaseURL`; both currently resolve to one `~/Library/Application Support/RepoBar/Cache.sqlite` path that is not partitioned by account.
 - The CLI auth commands (`Sources/repobarcli/Commands.swift`) for `login`, `logout`, `status`, and `import-gh-token` reach for `TokenStore.shared` directly.
 
 The existing spec already notes that the architecture should be ready for multi-account while the UI surfaces one account. The useful part is that `OAuthLoginFlow`, `OAuthTokenRefresher`, and `PATAuthenticator` are already injectable with a `TokenStore` parameter, and `GitHubClient` is per-instance state, so spinning up clients per account is straightforward.
@@ -92,7 +92,7 @@ Implementation detail:
 
 Migration:
 
-1. On first launch with the new build, if `UserSettings.accounts` is empty and a legacy `default` token exists, call `GET /user` once with that token.
+1. On first launch with the new build, if `UserSettings.accounts` is empty and either a legacy `default` OAuth token or a legacy `pat` token exists, call `GET /user` once with whichever credential is available. Prefer OAuth tokens when both exist so refresh metadata is preserved, but do not skip PAT-only users.
 2. Build an `Account` from the returned login and configured host.
 3. Copy OAuth tokens, client credentials, and/or PAT values under the new account ID.
 4. Delete the legacy fixed keys.
@@ -170,7 +170,7 @@ Rate-limit display remains per-account. For the menu-bar meter, choose one clear
 
 Make persistent caches account-scoped:
 
-- `RepoBarCacheDatabase.standardDatabaseURL` becomes `~/Library/Application Support/RepoBar/Cache/<accountID>.sqlite`.
+- `RepoBarPersistentCache.standardDatabaseURL` and the internal `HTTPResponseDiskCache.standardDatabaseURL` path derivation become account-scoped, resolving to `~/Library/Application Support/RepoBar/Cache/<accountID>.sqlite`.
 - Keep a separate shared database only for data that is not account-bound, such as local git state.
 - On migration, rename the existing `Cache.sqlite` into the migrated account's cache location.
 - Partition `GraphQLResponseDiskCache` similarly, passing an account-scoped directory through `GitHubClient` initialization.
