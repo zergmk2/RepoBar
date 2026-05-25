@@ -181,6 +181,7 @@ Useful docs:
 - [docs/cache.md](docs/cache.md) - persistent cache and archive design.
 - [docs/cli.md](docs/cli.md) - CLI command reference.
 - [docs/auth-storage.md](docs/auth-storage.md) - Keychain vs debug file-backed token storage.
+- [docs/multi-account-auth-plan.md](docs/multi-account-auth-plan.md) - staged design plan for multi-account auth, storage, UI, cache, and CLI support.
 - [docs/reposync.md](docs/reposync.md) - local project scanning and sync behavior.
 - [docs/release.md](docs/release.md) - release checklist.
 
