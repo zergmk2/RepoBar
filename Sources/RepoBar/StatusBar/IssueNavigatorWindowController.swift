@@ -5,7 +5,12 @@ import SwiftUI
 @MainActor
 final class IssueNavigatorWindowController: NSObject, NSWindowDelegate {
     private enum Metrics {
-        static let defaultContentSize = NSSize(width: 1600, height: 840)
+        static let baseContentSize = NSSize(width: 1600, height: 840)
+        static let defaultContentScale = CGFloat(2).squareRoot()
+        static let defaultContentSize = NSSize(
+            width: Self.baseContentSize.width * Self.defaultContentScale,
+            height: Self.baseContentSize.height * Self.defaultContentScale
+        )
         static let minimumContentSize = NSSize(width: 980, height: 620)
     }
 
@@ -36,8 +41,8 @@ final class IssueNavigatorWindowController: NSObject, NSWindowDelegate {
             window.titlebarAppearsTransparent = true
             window.toolbarStyle = .unified
             window.toolbar = IssueNavigatorToolbar()
-            window.setContentSize(Metrics.defaultContentSize)
-            window.minSize = Metrics.minimumContentSize
+            window.setContentSize(Self.clampedContentSize(Metrics.defaultContentSize, for: window))
+            window.contentMinSize = Self.clampedContentSize(Metrics.minimumContentSize, for: window)
             window.center()
             window.delegate = self
             self.window = window
@@ -49,6 +54,23 @@ final class IssueNavigatorWindowController: NSObject, NSWindowDelegate {
 
         self.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private static func clampedContentSize(_ contentSize: NSSize, for window: NSWindow) -> NSSize {
+        guard let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame else {
+            return contentSize
+        }
+
+        let frameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: contentSize)).size
+        let chromeWidth = max(0, frameSize.width - contentSize.width)
+        let chromeHeight = max(0, frameSize.height - contentSize.height)
+        let maxContentWidth = max(1, visibleFrame.width - chromeWidth)
+        let maxContentHeight = max(1, visibleFrame.height - chromeHeight)
+
+        return NSSize(
+            width: min(contentSize.width, maxContentWidth),
+            height: min(contentSize.height, maxContentHeight)
+        )
     }
 
     func windowWillClose(_ notification: Notification) {

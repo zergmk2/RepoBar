@@ -106,6 +106,27 @@ struct RecentListMenuTests {
         #expect(menu.items.last?.action == #selector(StatusBarMenuManager.openGitHubReferenceMatchesInIssueNavigator))
     }
 
+    @MainActor
+    @Test
+    func `multi reference status item uses click action instead of attached menu`() throws {
+        let appState = AppState()
+        let manager = StatusBarMenuManager(appState: appState)
+        let matches = try [
+            Self.makeReference(number: 1),
+            Self.makeReference(number: 2)
+        ]
+
+        appState.session.gitHubReferenceMatches = matches
+        appState.session.gitHubReferenceMatch = matches.first
+        manager.syncGitHubReferenceStatusItemForTesting()
+
+        let item = try #require(manager.gitHubReferenceStatusItemForTesting())
+        let button = try #require(item.button)
+        #expect(item.menu == nil)
+        #expect(button.target === manager)
+        #expect(button.action == #selector(StatusBarMenuManager.gitHubReferenceStatusItemClicked(_:)))
+    }
+
     private static func makeReference(number: Int) throws -> GitHubReferenceMatch {
         let url = try #require(URL(string: "https://github.com/owner/repo/issues/\(number)"))
         return GitHubReferenceMatch(

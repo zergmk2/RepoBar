@@ -249,11 +249,12 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
             (button.cell as? NSButtonCell)?.lineBreakMode = .byTruncatingTail
             self.setButtonTitle(self.gitHubReferenceTitle(for: matches), for: button)
             button.toolTip = self.gitHubReferenceMenuTitle(for: matches)
-            button.target = nil
-            button.action = nil
+            button.target = self
+            button.action = #selector(self.gitHubReferenceStatusItemClicked(_:))
+            _ = button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             self.clampGitHubReferenceStatusItemLength(item, button: button)
         }
-        item.menu = menu
+        item.menu = nil
         item.isVisible = true
         self.auditStatusItems("syncGitHubReferenceStatusItem visible")
     }
@@ -308,7 +309,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
         self.auditStatusItems("removeGitHubReferenceStatusItem")
     }
 
-    private func lazyGitHubReferenceMenu() -> NSMenu {
+    func lazyGitHubReferenceMenu() -> NSMenu {
         if let menu = self.gitHubReferenceMenu {
             return menu
         }
@@ -493,6 +494,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     func menuDidClose(_ menu: NSMenu) {
         if menu === self.gitHubReferenceMenu {
             self.unloadGitHubReferenceMenuPreviews(menu)
+            self.gitHubReferenceStatusItem?.menu = nil
         } else if menu === self.mainMenu {
             let shouldReopen = self.pendingMenuReopen
             self.pendingMenuReopen = false
