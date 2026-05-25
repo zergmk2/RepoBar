@@ -69,6 +69,20 @@ public enum RepoBarPersistentCache {
         HTTPResponseDiskCache.standardDatabaseURL(fileManager: fileManager)
     }
 
+    /// Account-scoped persistent cache path:
+    /// `~/Library/Application Support/RepoBar/Cache/<safe-accountID>.sqlite`.
+    ///
+    /// Falls back to `standardDatabaseURL` when `accountID` is nil so legacy
+    /// single-account callers keep their existing on-disk file. The account ID
+    /// is sanitized for use as a filename: any character outside
+    /// `[A-Za-z0-9._-]` is replaced with `_`.
+    public static func databaseURL(
+        accountID: String?,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        HTTPResponseDiskCache.databaseURL(accountID: accountID, fileManager: fileManager)
+    }
+
     public static func summary(limit: Int = 10, fileManager: FileManager = .default) throws -> RepoBarCacheSummary {
         guard let url = self.standardDatabaseURL(fileManager: fileManager) else {
             throw RepoBarCacheError.missingApplicationSupportDirectory
@@ -154,6 +168,31 @@ final class HTTPResponseDiskCache: @unchecked Sendable {
         return base
             .appending(path: "RepoBar", directoryHint: .isDirectory)
             .appending(path: "Cache.sqlite", directoryHint: .notDirectory)
+    }
+
+    /// Account-scoped variant of `standardDatabaseURL`. See
+    /// `RepoBarPersistentCache.databaseURL(accountID:fileManager:)`.
+    static func databaseURL(
+        accountID: String?,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        guard let accountID, accountID.isEmpty == false else {
+            return self.standardDatabaseURL(fileManager: fileManager)
+        }
+        guard let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+
+        return base
+            .appending(path: "RepoBar", directoryHint: .isDirectory)
+            .appending(path: "Cache", directoryHint: .isDirectory)
+            .appending(path: "\(Self.safeAccountFilename(accountID)).sqlite", directoryHint: .notDirectory)
+    }
+
+    static func safeAccountFilename(_ accountID: String) -> String {
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
+        let scalars = accountID.unicodeScalars.map { allowed.contains($0) ? Character($0) : "_" }
+        return String(scalars)
     }
 
     func cached(url: URL) -> PersistentHTTPResponse? {

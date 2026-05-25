@@ -57,7 +57,10 @@ struct RepoBarRoot: ParsableCommand {
                 LoginCommand.self,
                 LogoutCommand.self,
                 ImportGHTokenCommand.self,
-                StatusCommand.self
+                StatusCommand.self,
+                AccountsListCommand.self,
+                AccountsUseCommand.self,
+                AccountsRemoveCommand.self
             ],
             defaultSubcommand: ReposCommand.self
         )
@@ -380,6 +383,9 @@ struct LoginCommand: CommanderRunnableCommand {
     @Option(name: .customLong("loopback-port"), help: "Loopback port for OAuth callback")
     var loopbackPort: Int?
 
+    @Option(name: .customLong("label"), help: "Friendly display name for the new account")
+    var label: String?
+
     static var commandDescription: CommandDescription {
         CommandDescription(
             commandName: commandName,
@@ -392,6 +398,7 @@ struct LoginCommand: CommanderRunnableCommand {
         self.clientID = try values.decodeOption("clientID")
         self.clientSecret = try values.decodeOption("clientSecret")
         self.loopbackPort = try values.decodeOption("loopbackPort")
+        self.label = try values.decodeOption("label")
     }
 
     mutating func run() async throws {
@@ -407,33 +414,81 @@ struct LoginCommand: CommanderRunnableCommand {
             settings.enterpriseHost ?? settings.githubHost
         }
         let normalizedHost = try OAuthLoginFlow.normalizeHost(rawHost)
+        let resolvedClientID = self.clientID ?? RepoBarAuthDefaults.clientID
+        let resolvedClientSecret = self.clientSecret ?? RepoBarAuthDefaults.clientSecret
+        let resolvedLoopbackPort = self.loopbackPort ?? settings.loopbackPort
 
         let flow = OAuthLoginFlow(tokenStore: .shared) { url in
             try openURL(url)
         }
-        _ = try await flow.login(
-            clientID: self.clientID ?? RepoBarAuthDefaults.clientID,
-            clientSecret: self.clientSecret ?? RepoBarAuthDefaults.clientSecret,
+        let tokens = try await flow.login(
+            clientID: resolvedClientID,
+            clientSecret: resolvedClientSecret,
             host: normalizedHost,
-            loopbackPort: loopbackPort ?? settings.loopbackPort
+            loopbackPort: resolvedLoopbackPort
         )
 
-        settings.loopbackPort = loopbackPort ?? settings.loopbackPort
+        // Identify the signed-in user so we can persist an account record.
+        let apiHost = Account.deriveAPIHost(for: normalizedHost)
+        let probeClient = GitHubClient()
+        await probeClient.setAPIHost(apiHost)
+        let capturedToken = tokens.accessToken
+        await probeClient.setTokenProvider { @Sendable in
+            OAuthTokens(accessToken: capturedToken, refreshToken: "", expiresAt: nil)
+        }
+        let identity = try await probeClient.currentUser()
+
+        let account = Account(
+            username: identity.username,
+            host: normalizedHost,
+            authMethod: .oauth,
+            loopbackPort: resolvedLoopbackPort,
+            clientID: resolvedClientID,
+            displayName: self.label
+        )
+
+        // Persist tokens + client credentials under the account-scoped keys so
+        // multi-account refresh continues to work after the legacy "default"
+        // entries are cleared on a future migration.
+        try TokenStore.shared.save(tokens: tokens, accountID: account.id)
+        try TokenStore.shared.save(
+            clientCredentials: OAuthClientCredentials(
+                clientID: resolvedClientID,
+                clientSecret: resolvedClientSecret
+            ),
+            accountID: account.id
+        )
+
+        settings.loopbackPort = resolvedLoopbackPort
         settings.githubHost = RepoBarAuthDefaults.githubHost
         if normalizedHost.host?.lowercased() == "github.com" {
             settings.enterpriseHost = nil
         } else {
             settings.enterpriseHost = normalizedHost
         }
+        if let index = settings.accounts.firstIndex(where: { $0.id == account.id }) {
+            settings.accounts[index] = account
+        } else {
+            settings.accounts.append(account)
+        }
+        if settings.activeAccountID == nil {
+            settings.activeAccountID = account.id
+        }
         store.save(settings)
 
-        print("Login succeeded; tokens stored.")
+        print("Login succeeded; tokens stored for \(account.id).")
     }
 }
 
 @MainActor
 struct LogoutCommand: CommanderRunnableCommand {
     nonisolated static let commandName = "logout"
+
+    @Option(name: .customLong("account"), help: "Account ID or username@host (defaults to active account)")
+    var account: String?
+
+    @Flag(names: [.customLong("all")], help: "Log out of every configured account")
+    var all: Bool = false
 
     static var commandDescription: CommandDescription {
         CommandDescription(
@@ -442,11 +497,41 @@ struct LogoutCommand: CommanderRunnableCommand {
         )
     }
 
-    mutating func bind(_: ParsedValues) throws {}
+    mutating func bind(_ values: ParsedValues) throws {
+        self.account = try values.decodeOption("account")
+        self.all = values.flag("all")
+    }
 
     mutating func run() async throws {
+        let store = SettingsStore()
+        var settings = store.load()
+        // Legacy single-account clear for backwards compatibility.
         TokenStore.shared.clear()
-        print("Logged out.")
+
+        if self.all {
+            for account in settings.accounts {
+                TokenStore.shared.clear(accountID: account.id)
+            }
+            settings.accounts = []
+            settings.activeAccountID = nil
+            store.save(settings)
+            print("Logged out of all accounts.")
+            return
+        }
+
+        if settings.accounts.isEmpty {
+            print("Logged out.")
+            return
+        }
+
+        let resolved = try AccountResolver.resolve(self.account, settings: settings)
+        TokenStore.shared.clear(accountID: resolved.id)
+        settings.accounts.removeAll(where: { $0.id == resolved.id })
+        if settings.activeAccountID == resolved.id {
+            settings.activeAccountID = settings.accounts.first?.id
+        }
+        store.save(settings)
+        print("Logged out of \(resolved.id).")
     }
 }
 
@@ -457,6 +542,9 @@ struct ImportGHTokenCommand: CommanderRunnableCommand {
     @Option(name: .customLong("host"), help: "GitHub host (https://github.com or your GHE base URL)")
     var host: String?
 
+    @Option(name: .customLong("label"), help: "Friendly display name for the imported account")
+    var label: String?
+
     static var commandDescription: CommandDescription {
         CommandDescription(
             commandName: commandName,
@@ -466,6 +554,7 @@ struct ImportGHTokenCommand: CommanderRunnableCommand {
 
     mutating func bind(_ values: ParsedValues) throws {
         self.host = try values.decodeOption("host")
+        self.label = try values.decodeOption("label")
     }
 
     mutating func run() async throws {
@@ -514,16 +603,44 @@ struct ImportGHTokenCommand: CommanderRunnableCommand {
             expiresAt: nil
         )
 
+        // Probe the API so we can persist a stable account record.
+        let apiHost = Account.deriveAPIHost(for: normalizedHost)
+        let probeClient = GitHubClient()
+        await probeClient.setAPIHost(apiHost)
+        await probeClient.setTokenProvider { @Sendable in
+            OAuthTokens(accessToken: tokenString, refreshToken: "", expiresAt: nil)
+        }
+        let identity = try await probeClient.currentUser()
+        let account = Account(
+            username: identity.username,
+            host: normalizedHost,
+            authMethod: .pat,
+            displayName: self.label
+        )
+
+        // Legacy single-account fast path keeps working.
         try TokenStore.shared.save(tokens: tokens)
+        // Account-scoped storage for multi-account flows.
+        try TokenStore.shared.save(tokens: tokens, accountID: account.id)
+        try TokenStore.shared.savePAT(tokenString, accountID: account.id)
+
         settings.githubHost = RepoBarAuthDefaults.githubHost
         if normalizedHost.host?.lowercased() == "github.com" {
             settings.enterpriseHost = nil
         } else {
             settings.enterpriseHost = normalizedHost
         }
+        if let index = settings.accounts.firstIndex(where: { $0.id == account.id }) {
+            settings.accounts[index] = account
+        } else {
+            settings.accounts.append(account)
+        }
+        if settings.activeAccountID == nil {
+            settings.activeAccountID = account.id
+        }
         store.save(settings)
 
-        print("Successfully imported gh CLI token.")
+        print("Successfully imported gh CLI token for \(account.id).")
         print("Token expires: unknown")
         print("\nNote: Re-run this command if your gh token changes or if you re-authenticate with 'gh auth login'.")
     }
@@ -536,6 +653,9 @@ struct StatusCommand: CommanderRunnableCommand {
     @OptionGroup
     var output: OutputOptions
 
+    @Option(name: .customLong("account"), help: "Account ID or username@host (defaults to active account)")
+    var account: String?
+
     static var commandDescription: CommandDescription {
         CommandDescription(
             commandName: commandName,
@@ -545,9 +665,62 @@ struct StatusCommand: CommanderRunnableCommand {
 
     mutating func bind(_ values: ParsedValues) throws {
         self.output.bind(values)
+        self.account = try values.decodeOption("account")
     }
 
     mutating func run() async throws {
+        let settings = SettingsStore().load()
+        // When the user explicitly targets an account, read account-scoped tokens.
+        if self.account != nil || settings.accounts.isEmpty == false {
+            let resolved: Account
+            do {
+                resolved = try AccountResolver.resolve(self.account, settings: settings)
+            } catch {
+                if self.account == nil {
+                    // No account configured at all - fall through to legacy path.
+                    try await self.runLegacy()
+                    return
+                }
+                throw error
+            }
+            let tokens = try? TokenStore.shared.loadTokens(accountID: resolved.id)
+            let pat = try? TokenStore.shared.loadPAT(accountID: resolved.id)
+            let now = Date()
+            let expiresAt = tokens?.expiresAt
+            let expired = expiresAt.map { $0 <= now }
+            let expiresIn = expiresAt.map { RelativeFormatter.string(from: $0, relativeTo: now) }
+            let authenticated = tokens != nil || pat != nil
+            if self.output.jsonOutput {
+                let output = StatusOutput(
+                    authenticated: authenticated,
+                    host: resolved.host.absoluteString,
+                    expiresAt: expiresAt,
+                    expiresIn: expiresIn,
+                    expired: expired
+                )
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let data = try encoder.encode(output)
+                if let json = String(data: data, encoding: .utf8) { print(json) }
+            } else if authenticated == false {
+                print("Logged out (\(resolved.id)).")
+            } else {
+                print("Logged in as \(resolved.id).")
+                print("Host: \(resolved.host.absoluteString)")
+                if let expiresAt {
+                    let state = expired == true ? "expired" : "expires"
+                    let label = expiresIn ?? expiresAt.formatted()
+                    print("\(state.capitalized): \(label)")
+                } else {
+                    print("Expires: unknown")
+                }
+            }
+            return
+        }
+        try await self.runLegacy()
+    }
+
+    private func runLegacy() async throws {
         let tokens = try TokenStore.shared.load()
         guard let tokens else {
             if self.output.jsonOutput {

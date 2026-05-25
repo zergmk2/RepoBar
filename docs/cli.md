@@ -107,9 +107,17 @@ The file store lives under `~/Library/Application Support/RepoBar/DebugAuth`. Se
 - `settings show`: print current settings.
 - `settings set <key> <value>`: update settings (refresh interval, display limit, heatmap, local settings).
 - `login`: browser OAuth login.
-  - Flags: `--host`, `--client-id`, `--client-secret`, `--loopback-port`.
+  - Flags: `--host`, `--client-id`, `--client-secret`, `--loopback-port`, `--label`.
+  - On success the CLI fetches `GET /user` to identify the signed-in account, persists tokens under the account-scoped Keychain/file keys, and appends the account to `accounts`.
 - `logout`: clear stored credentials.
+  - Flags: `--account <id|user@host>` (defaults to the active account), `--all` (clear every configured account).
 - `status`: show login state.
+  - Flags: `--account <id|user@host>` (defaults to the active account).
+- `import-gh-token`: import an SSO-enabled token from the GitHub CLI.
+  - Flags: `--host`, `--label`.
+- `accounts list`: list configured accounts (active account marked with `*`).
+- `accounts use <id|user@host>`: set the active account.
+- `accounts remove <id|user@host>`: clear stored credentials and remove the account.
 ### Output standards
 - All list commands support: `--limit`, `--json`, `--plain`, `--no-color`.
 - List items include URLs when `--plain` is not set (link-enabled terminals).

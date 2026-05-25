@@ -12,6 +12,7 @@ final class AppState {
     let auth = OAuthCoordinator()
     let patAuth = PATAuthenticator()
     let github = GitHubClient()
+    let accountManager = AccountManager()
     let refreshScheduler = RefreshScheduler()
     let settingsStore = SettingsStore()
     let gitHubPullRequestNotificationRunner = GitHubPullRequestNotificationRunner()
@@ -75,9 +76,16 @@ final class AppState {
                 if self.session.settings.authMethod == .oauth, self.auth.loadTokens() != nil {
                     _ = try? await self.auth.refreshIfNeeded()
                 }
+                // Fan out to every account-scoped OAuth refresher. PAT-only
+                // accounts are no-ops and OAuth accounts refresh independently.
+                await self.accountManager.refreshAllIfNeeded()
                 try? await Task.sleep(for: .seconds(self.tokenRefreshInterval))
             }
         }
+        // Bootstrap account manager and run legacy migration if needed.
+        // Done after the rest of init so existing single-account code paths see
+        // the new state on the first refresh tick.
+        Task { [weak self] in await self?.bootstrapAccounts() }
         self.refreshScheduler.configure(interval: self.session.settings.refreshInterval.seconds) { [weak self] in
             self?.requestRefresh()
         }

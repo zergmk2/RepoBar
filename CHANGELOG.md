@@ -7,6 +7,11 @@
 - Add embedded Issue Navigator browser back navigation and reload an already-selected sidebar entry back to its original GitHub URL.
 - Preload the first embedded Issue Navigator browser preview when the clipboard resolves to multiple GitHub references.
 - Add a design plan for staged multi-account authentication, storage, UI, cache, and CLI support.
+- Store OAuth, client-credential, and PAT material under stable per-account Keychain keys derived from `host#username`, with a Keychain/file index so multiple accounts can be enumerated without colliding on legacy fixed entries.
+- Introduce a multi-account data model (`Account`, `AccountSelection`, account-scoped pinned/hidden repository lists) in `UserSettings` with backward-compatible Codable so existing single-account installs continue to load.
+- Add an `AccountManager` that owns per-account `GitHubClient` instances and an account-scoped OAuth refresher, and bootstrap it from `AppState` with a one-shot migration that records the existing single-account credentials under the new account identity.
+- Scope persistent GraphQL and HTTP caches per account so each account writes to its own SQLite database under `~/Library/Application Support/RepoBar/Cache/`.
+- Surface configured accounts in the Settings sidebar with use/visible/remove actions, and expose `repobar accounts list/use/remove` plus `--account`/`--all`/`--label` flags on `login`, `logout`, `status`, and `import-gh-token` in the CLI.
 
 ## 0.6.5 - 2026-05-24
 

@@ -23,6 +23,7 @@ extension AppState {
             if let user = try? await self.github.currentUser() {
                 self.session.account = .loggedIn(user)
                 self.session.lastError = nil
+                await self.recordAccountForLogin(user: user, host: self.defaultGitHubHost, method: .oauth)
             } else {
                 self.session.account = .loggedIn(UserIdentity(username: "", host: self.defaultGitHubHost))
             }
@@ -55,6 +56,7 @@ extension AppState {
             self.session.account = .loggedIn(user)
             self.session.lastError = nil
             self.persistSettings()
+            await self.recordAccountForLogin(user: user, host: host, method: .pat, persistPAT: pat)
             await self.refresh()
         } catch {
             self.session.account = .loggedOut

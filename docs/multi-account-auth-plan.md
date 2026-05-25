@@ -11,6 +11,27 @@ read_when:
 
 RepoBar's current authentication code is intentionally small and clean, but it is wired around a single signed-in account. This document maps the current single-account surface and proposes a staged path to multi-account support.
 
+## Implementation Status
+
+The 0.6.6 cycle landed the bulk of the plan end-to-end behind a backward-compatible facade. The legacy single-account `TokenStore` keys (`default`, `client`, `pat`) and the `githubHost` / `enterpriseHost` / `loopbackPort` / `authMethod` `UserSettings` fields are still authoritative for installs that have not been re-auth'd; the new account-scoped keys, settings, caches, and clients are populated on first login (or via the legacy migration on bootstrap) without removing those legacy entries.
+
+Landed:
+
+- Phase 0/1 — `Account`, `AccountSelection`, and `AccountScopedRepositoryLists` live in `RepoBarCore`; `UserSettings` decodes/encodes the new fields with safe defaults and omits them when empty so legacy reads stay clean.
+- Phase 1 — `TokenStore` exposes `save/load/clear(tokens:|clientCredentials:|PAT:_:accountID:)` plus an account index that lets callers enumerate accounts on the Keychain or file backend.
+- Phase 2 — `AccountManager` (`Sources/RepoBar/Auth/AccountManager.swift`) owns one `GitHubClient` and an account-scoped OAuth refresher per `Account`; `AppState` bootstraps it and `tokenRefreshTask` now drives `refreshAllIfNeeded()`.
+- Phase 2 — `AppState+Accounts.swift` performs a one-shot migration that probes `GET /user` with whichever credential currently exists, records the resulting `Account`, and copies tokens under the account-scoped keys.
+- Phase 3 — `Session` exposes `accountSessions` / `activeAccountID` / `aggregatedRepositories`, and `TaggedRepo` provides a collision-safe wrapper for the menu fan-out path. Single-account `repositories` and `accessibleRepositories` continue to drive existing UI.
+- Phase 4 — `HTTPResponseDiskCache` and `RepoBarPersistentCache` accept an `accountID:` parameter and resolve to `~/Library/Application Support/RepoBar/Cache/<account>.sqlite` (legacy path used when `accountID` is `nil`). `GraphQLResponseDiskCache.scoped(accountID:)` follows the same pattern.
+- Phase 5 — `AccountSettingsView` shows an account list (use / visibility / verify / remove) above the legacy single-account form, which is now labelled "Add Account".
+- Phase 6 — CLI gains `repobar accounts list/use/remove`, plus `--account`/`--all` on `logout`, `--account` on `status`, and `--label` on `login`/`import-gh-token`. After successful auth both commands fetch `GET /user`, derive a stable `Account`, and persist tokens under the account-scoped keys in addition to the legacy fast-path entries.
+
+Deferred:
+
+- Notification / reference monitor fan-out across accounts. The model currently lives on the active account only; `Session.aggregatedRepositories` is populated but not yet consumed by the menu builders or background pollers.
+- Per-account rate-limit display in the menu and Settings (Account list shows a single status today).
+- Removing the legacy fixed `TokenStore` keys after migration. The migration helper writes the account-scoped copies; the legacy entries remain in place for now so a downgrade keeps working.
+
 ## Current Auth Model
 
 The auth surface is hardwired around one account in these places:

@@ -21,6 +21,12 @@ public struct UserSettings: Equatable, Codable {
     public var authMethod: AuthMethod = .oauth
     public var monitoredOwners: [String] = []
     public var actions = ActionsSettings()
+    // Multi-account fields (Phase 2+). Old single-account fields above are kept as
+    // compatibility shims and continue to mirror the active account.
+    public var accounts: [Account] = []
+    public var activeAccountID: String?
+    public var accountSelection: AccountSelection = .all
+    public var accountRepoLists: AccountScopedRepositoryLists = .init()
 
     public init() {}
 
@@ -46,6 +52,10 @@ public struct UserSettings: Equatable, Codable {
         case authMethod
         case monitoredOwners
         case actions
+        case accounts
+        case activeAccountID
+        case accountSelection
+        case accountRepoLists
     }
 
     public init(from decoder: Decoder) throws {
@@ -86,6 +96,13 @@ public struct UserSettings: Equatable, Codable {
         } else {
             self.menuCustomization.hiddenMainMenuItems.insert(.actionsLimits)
         }
+        self.accounts = try container.decodeIfPresent([Account].self, forKey: .accounts) ?? []
+        self.activeAccountID = try container.decodeIfPresent(String.self, forKey: .activeAccountID)
+        self.accountSelection = try container.decodeIfPresent(AccountSelection.self, forKey: .accountSelection) ?? .all
+        self.accountRepoLists = try container.decodeIfPresent(
+            AccountScopedRepositoryLists.self,
+            forKey: .accountRepoLists
+        ) ?? AccountScopedRepositoryLists()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -113,6 +130,44 @@ public struct UserSettings: Equatable, Codable {
         actions.ownerFilter = OwnerFilter.normalize(self.monitoredOwners)
         actions.monitoredOrg = nil
         try container.encode(actions, forKey: .actions)
+        if self.accounts.isEmpty == false {
+            try container.encode(self.accounts, forKey: .accounts)
+        }
+        try container.encodeIfPresent(self.activeAccountID, forKey: .activeAccountID)
+        if case .all = self.accountSelection {
+            // Default: omit so legacy reads stay clean.
+        } else {
+            try container.encode(self.accountSelection, forKey: .accountSelection)
+        }
+        if self.accountRepoLists.isEmpty == false {
+            try container.encode(self.accountRepoLists, forKey: .accountRepoLists)
+        }
+    }
+
+    // MARK: - Multi-account helpers
+
+    /// Resolves the active account, falling back to the only configured account.
+    public func resolvedActiveAccount() -> Account? {
+        if let activeAccountID,
+           let account = self.accounts.first(where: { $0.id == activeAccountID })
+        {
+            return account
+        }
+        if self.accounts.count == 1 {
+            return self.accounts.first
+        }
+        return nil
+    }
+
+    /// Account IDs that should contribute repositories to the menu.
+    public var visibleAccountIDs: [String] {
+        let ids = self.accounts.map(\.id)
+        switch self.accountSelection {
+        case .all:
+            return ids
+        case let .only(selected):
+            return ids.filter { selected.contains($0) }
+        }
     }
 }
 

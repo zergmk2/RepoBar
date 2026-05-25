@@ -28,7 +28,15 @@ final class GraphQLResponseDiskCache {
     }
 
     static func standard() -> GraphQLResponseDiskCache? {
-        guard let path = HTTPResponseDiskCache.standardDatabaseURL()?.path else { return nil }
+        self.scoped(accountID: nil)
+    }
+
+    /// Account-scoped GraphQL cache. Falls back to the shared `standard()`
+    /// database when `accountID` is nil so legacy callers keep working.
+    static func scoped(accountID: String?) -> GraphQLResponseDiskCache? {
+        let url = HTTPResponseDiskCache.databaseURL(accountID: accountID)
+            ?? HTTPResponseDiskCache.standardDatabaseURL()
+        guard let path = url?.path else { return nil }
 
         do {
             return try GraphQLResponseDiskCache(path: path)

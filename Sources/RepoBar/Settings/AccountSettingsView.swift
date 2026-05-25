@@ -22,7 +22,9 @@ struct AccountSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Account") {
+            AccountsListSection(session: self.session, appState: self.appState)
+
+            Section("Add Account") {
                 Picker("Host", selection: self.$hostMode) {
                     ForEach(HostMode.allCases, id: \.self) { mode in
                         Text(mode.label).tag(mode)
