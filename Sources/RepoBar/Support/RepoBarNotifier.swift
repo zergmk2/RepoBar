@@ -270,16 +270,3 @@ final class RepoBarNotificationResponseHandler: NSObject, @unchecked Sendable, U
         ]
     }
 }
-
-private extension GitHubReferenceQuery {
-    var issueNumber: Int? {
-        switch self {
-        case let .issueNumber(number),
-             let .repositoryNameIssueNumber(_, number),
-             let .repositoryIssueNumber(_, number):
-            number
-        case .commitHash, .repositoryCommitHash, .repositoryWorkflowRun:
-            nil
-        }
-    }
-}

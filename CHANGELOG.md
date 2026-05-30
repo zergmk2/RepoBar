@@ -3,6 +3,7 @@
 ## 0.6.7 - Unreleased
 
 - Add copyable update diagnostics in About so Sparkle install-location failures include bundle path, resolved path, signing, Homebrew, translocation, and quarantine signals. (#70)
+- Keep copied repository-scoped PR and issue references like `owner/repo PR #123` resolving to the named repository instead of a newer same-number reference elsewhere.
 
 ## 0.6.6 - 2026-05-26
 

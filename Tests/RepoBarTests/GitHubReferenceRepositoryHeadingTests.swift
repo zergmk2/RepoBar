@@ -853,7 +853,9 @@ struct GitHubReferenceRepositoryHeadingMergeTests {
 
         #expect(GitHubReferenceTranslator.queries(from: """
         - openclaw/Tachikoma: PR 18
-        """) == [.issueNumber(18)])
+        """) == [
+            .repositoryIssueNumber(repositoryFullName: "openclaw/Tachikoma", number: 18)
+        ])
     }
 
     @Test
