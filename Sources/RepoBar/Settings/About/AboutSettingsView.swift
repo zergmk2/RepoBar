@@ -108,6 +108,9 @@ struct AboutSettingsView: View {
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
             }
+            Button("Copy Update Diagnostics") {
+                self.copyUpdateDiagnostics()
+            }
 
             Text("© 2025 Peter Steinberger. MIT License.")
                 .font(.footnote)
@@ -133,5 +136,13 @@ struct AboutSettingsView: View {
                 SparkleController.shared.automaticallyDownloadsUpdates = newValue
             }
         }
+    }
+
+    private func copyUpdateDiagnostics() {
+        let diagnostics = UpdateDiagnostics.current(
+            canCheckForUpdates: SparkleController.shared.canCheckForUpdates
+        )
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(diagnostics.pasteboardText, forType: .string)
     }
 }
