@@ -155,9 +155,6 @@ final class AccountManager {
         if let tokens = try? self.tokenStore.loadTokens(accountID: accountID) {
             return tokens.accessToken
         }
-        if let pat = try? self.tokenStore.loadPAT(accountID: accountID) {
-            return pat
-        }
         return nil
     }
 

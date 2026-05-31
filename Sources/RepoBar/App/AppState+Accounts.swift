@@ -134,6 +134,7 @@ extension AppState {
             clientID: (try? TokenStore.shared.loadClientCredentials())?.clientID
         )
 
+        TokenStore.shared.clear(accountID: account.id)
         switch method {
         case .oauth:
             if let tokens = try? TokenStore.shared.load() {
