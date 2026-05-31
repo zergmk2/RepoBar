@@ -553,7 +553,11 @@ public actor GitHubClient {
     // MARK: - Internal helpers
 
     private func validAccessToken() async throws -> String {
-        if let provider = tokenProvider, let tokens = try await provider() { return tokens.accessToken }
+        if let provider = tokenProvider {
+            guard let tokens = try await provider() else { throw URLError(.userAuthenticationRequired) }
+
+            return tokens.accessToken
+        }
         if let token = try tokenStore.load()?.accessToken { return token }
         throw URLError(.userAuthenticationRequired)
     }

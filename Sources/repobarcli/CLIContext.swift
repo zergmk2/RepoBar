@@ -75,6 +75,13 @@ func mirrorAccountCredentialsToLegacy(_ account: Account) throws {
     }
 }
 
+func mirrorActiveAccountIntoSettings(_ account: Account, settings: inout UserSettings) {
+    settings.githubHost = account.host
+    settings.enterpriseHost = account.host.host?.lowercased() == "github.com" ? nil : account.host
+    settings.authMethod = account.authMethod
+    settings.loopbackPort = account.loopbackPort
+}
+
 func makeRepoURL(baseHost: URL, owner: String, name: String) -> URL {
     RepoIdentifier(owner: owner, name: name).webURL(baseHost: baseHost)
 }

@@ -36,7 +36,7 @@ enum AccountResolver {
         let user = input[..<at].lowercased()
         let host = input[input.index(after: at)...].lowercased()
         return accounts.first(where: {
-            $0.username.lowercased() == user && ($0.host.host?.lowercased() == host)
+            $0.username.lowercased() == user && Account.hostAuthority(for: $0.host) == host
         })
     }
 }
@@ -101,6 +101,7 @@ struct AccountsUseCommand: CommanderRunnableCommand {
         let account = try AccountResolver.resolve(self.target, settings: settings)
         try mirrorAccountCredentialsToLegacy(account)
         settings.activeAccountID = account.id
+        mirrorActiveAccountIntoSettings(account, settings: &settings)
         store.save(settings)
         print("Active account set to \(account.id).")
     }

@@ -158,6 +158,7 @@ extension AppState {
             self.session.settings.accounts.append(account)
         }
         self.session.settings.activeAccountID = account.id
+        self.mirrorActiveAccountIntoSettings(account)
         self.session.activeAccountID = self.accountManager.activeAccountID
         await self.syncPrimaryGitHubClientToActiveAccount()
         self.session.accountSessions = self.session.settings.accounts.map { existing in
@@ -175,6 +176,9 @@ extension AppState {
 
         self.session.activeAccountID = accountID
         self.session.settings.activeAccountID = accountID
+        if let active = self.accountManager.activeAccount() {
+            self.mirrorActiveAccountIntoSettings(active)
+        }
         self.persistSettings()
         await self.syncPrimaryGitHubClientToActiveAccount()
         await self.refreshSessionIdentityFromActiveClient()
@@ -192,6 +196,9 @@ extension AppState {
         if self.session.settings.activeAccountID == accountID {
             self.session.settings.activeAccountID = self.session.settings.accounts.first?.id
             self.session.activeAccountID = self.session.settings.activeAccountID
+        }
+        if let active = self.accountManager.activeAccount() {
+            self.mirrorActiveAccountIntoSettings(active)
         }
         if removesLegacyBackedAccount {
             TokenStore.shared.clear()
@@ -228,5 +235,12 @@ extension AppState {
         if let user = try? await self.github.currentUser() {
             self.session.account = .loggedIn(user)
         }
+    }
+
+    private func mirrorActiveAccountIntoSettings(_ account: Account) {
+        self.session.settings.githubHost = account.host
+        self.session.settings.enterpriseHost = account.host.host?.lowercased() == "github.com" ? nil : account.host
+        self.session.settings.authMethod = account.authMethod
+        self.session.settings.loopbackPort = account.loopbackPort
     }
 }
