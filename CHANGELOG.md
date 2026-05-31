@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.7.1 - Unreleased
+
 ## 0.7.0 - 2026-05-31
 
 - Add copyable update diagnostics in About so Sparkle install-location failures include bundle path, resolved path, signing, Homebrew, translocation, and quarantine signals. (#70)
