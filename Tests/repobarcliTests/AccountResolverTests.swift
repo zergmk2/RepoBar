@@ -1,7 +1,7 @@
 import Commander
 import Foundation
-import RepoBarCore
 @testable import repobarcli
+import RepoBarCore
 import Testing
 
 struct AccountResolverTests {

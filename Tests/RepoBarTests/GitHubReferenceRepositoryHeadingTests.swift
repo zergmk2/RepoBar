@@ -140,6 +140,92 @@ struct GitHubReferenceRepositoryHeadingTests {
     }
 
     @Test
+    func `numbered repository headings inherit context after nested count summary`() {
+        let text = """
+          1. steipete/birdclaw
+              - 0 issues / 1 PR
+              - PR #44: clean, one green GitGuardian check
+              - title: fix: keep init alive when searchDirectoryEffect scan throws
+              - best first: own repo, small bugfix shape
+          2. openclaw/clawsweeper-state
+              - 0 issues / 1 PR
+              - PR #3: 95 add / 8 del / 7 files, security checks green
+              - caveat: “six confirmed bugs from audit” smells review-heavy despite small queue
+          3. openclaw/wacli
+              - 1 issue / 1 PR
+              - PR #267: 474 add / 5 del / 9 files, CI + docker green
+              - issue #268 needs product/maintainer decision; PR is a feature, likely reviewable but not tiny
+          4. openclaw/mcporter
+              - 2 issues / 1 PR
+              - PR #175: 858 add / 7 del / 12 files, CI green across ubuntu/macos/windows
+              - issue #188 is P1 lifecycle/reuse bug; probably more urgent than PR #175
+          5. openclaw/spogo
+              - 0 issues / 1 PR
+              - PR #29: 1692 add / 33 del / 23 files
+              - queue tiny, diff not tiny; later
+        """
+
+        #expect(GitHubReferenceTranslator.queries(from: text) == [
+            .repositoryIssueNumber(repositoryFullName: "steipete/birdclaw", number: 44),
+            .repositoryIssueNumber(repositoryFullName: "openclaw/clawsweeper-state", number: 3),
+            .repositoryIssueNumber(repositoryFullName: "openclaw/wacli", number: 267),
+            .repositoryIssueNumber(repositoryFullName: "openclaw/wacli", number: 268),
+            .repositoryIssueNumber(repositoryFullName: "openclaw/mcporter", number: 175),
+            .repositoryIssueNumber(repositoryFullName: "openclaw/mcporter", number: 188),
+            .repositoryIssueNumber(repositoryFullName: "openclaw/spogo", number: 29)
+        ])
+    }
+
+    @Test
+    func `numbered repository headings keep sibling context after active block`() {
+        let text = """
+          1. steipete/birdclaw
+              - 0 issues / 1 PR
+              - PR #44
+          2. openclaw/clawsweeper-state
+              - 0 issues / 1 PR
+              - PR #3
+        """
+
+        #expect(GitHubReferenceTranslator.queries(from: text) == [
+            .repositoryIssueNumber(repositoryFullName: "steipete/birdclaw", number: 44),
+            .repositoryIssueNumber(repositoryFullName: "openclaw/clawsweeper-state", number: 3)
+        ])
+    }
+
+    @Test
+    func `normal repository heading clears stale pending repository only heading`() {
+        let text = """
+        1. old/repo
+        2. new/repo: 0 issues / 1 PR
+           - 0 issues / 1 PR
+           - PR #3
+        """
+
+        #expect(GitHubReferenceTranslator.queries(from: text) == [
+            .repositoryIssueNumber(repositoryFullName: "new/repo", number: 3)
+        ])
+    }
+
+    @Test
+    func `repository heading child rows ignore diffstat tail counts`() {
+        let text = """
+        - owner/repo: 0 issues / 3 PRs
+          - PR #3: 95 additions
+          - PR #4: 7 files changed
+          - PR #5: 1 deletion
+          - PR #6: 95 additions and 8 deletions
+        """
+
+        #expect(GitHubReferenceTranslator.queries(from: text) == [
+            .repositoryIssueNumber(repositoryFullName: "owner/repo", number: 3),
+            .repositoryIssueNumber(repositoryFullName: "owner/repo", number: 4),
+            .repositoryIssueNumber(repositoryFullName: "owner/repo", number: 5),
+            .repositoryIssueNumber(repositoryFullName: "owner/repo", number: 6)
+        ])
+    }
+
+    @Test
     func `repository heading list context wins for nested items with urls`() {
         let text = """
         - openclaw/Tachikoma: 1 issue / 1 PR
@@ -568,6 +654,71 @@ struct GitHubReferenceRepositoryHeadingMergeTests {
     }
 
     @Test
+    func `consumed repository only heading keeps unrelated normal context ambiguous`() {
+        let text = """
+        1. openclaw/Peekaboo
+        2. openclaw/gogcli
+           - 0 issues / 1 PR
+           - PR #2
+
+        - Do: PR #139
+        """
+
+        #expect(GitHubReferenceTranslator.queries(from: text) == [
+            .repositoryIssueNumber(repositoryFullName: "openclaw/gogcli", number: 2),
+            .issueNumber(139)
+        ])
+    }
+
+    @Test
+    func `empty consumed repository only block keeps unrelated normal context ambiguous`() {
+        let text = """
+        1. openclaw/Peekaboo
+        2. openclaw/gogcli
+           - 0 issues / 1 PR
+
+        - Do: PR #139
+        """
+
+        #expect(GitHubReferenceTranslator.queries(from: text) == [
+            .issueNumber(139)
+        ])
+    }
+
+    @Test
+    func `empty consumed bare repository only block keeps unrelated normal context ambiguous`() {
+        let text = """
+        openclaw/Peekaboo
+        openclaw/gogcli
+          0 issues / 1 PR
+
+        - Do: PR #139
+        """
+
+        #expect(GitHubReferenceTranslator.queries(from: text) == [
+            .issueNumber(139)
+        ])
+    }
+
+    @Test
+    func `explicit normal repository context beats leftover repository only list item`() {
+        let text = """
+        1. openclaw/Peekaboo
+        2. openclaw/gogcli
+           - 0 issues / 1 PR
+           - PR #2
+
+        Found in openclaw/Peekaboo.
+        - Do: PR #139
+        """
+
+        #expect(GitHubReferenceTranslator.queries(from: text) == [
+            .repositoryIssueNumber(repositoryFullName: "openclaw/gogcli", number: 2),
+            .repositoryIssueNumber(repositoryFullName: "openclaw/Peekaboo", number: 139)
+        ])
+    }
+
+    @Test
     func `repository heading blocks keep primary url list shortcut`() {
         let text = """
         - openclaw/Tachikoma: 1 issue / 1 PR
@@ -702,7 +853,9 @@ struct GitHubReferenceRepositoryHeadingMergeTests {
 
         #expect(GitHubReferenceTranslator.queries(from: """
         - openclaw/Tachikoma: PR 18
-        """) == [.issueNumber(18)])
+        """) == [
+            .repositoryIssueNumber(repositoryFullName: "openclaw/Tachikoma", number: 18)
+        ])
     }
 
     @Test

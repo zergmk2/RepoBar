@@ -4,6 +4,7 @@ struct RepositoryHeadingListBlockParse {
     let entries: [RepositoryHeadingListBlockEntry]
     let consumedLineIndexes: Set<Int>
     let remainingText: String
+    let repositoryFullNames: [String]
 
     var queries: [GitHubReferenceQuery] {
         self.entries.flatMap(\.queries)
@@ -23,21 +24,68 @@ extension GitHubReferenceTranslator {
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var entries: [RepositoryHeadingListBlockEntry] = []
         var consumedLineIndexes: Set<Int> = []
+        var repositoryFullNames: [String] = []
         var currentRepositoryFullName: String?
         var currentHeadingIndent: Int?
         var currentChildHadIssueReferenceContext = false
         var currentChildHadCommitContext = false
+        var pendingRepositoryFullName: String?
+        var pendingHeadingIndent: Int?
+        var pendingLineIndex: Int?
 
         for (lineIndex, line) in lines.enumerated() {
             let indent = self.leadingWhitespaceCount(in: line)
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             let listItemBody = self.listItemBody(in: line)
             if let repositoryFullName = self.repositoryHeading(in: listItemBody ?? trimmed) {
+                pendingRepositoryFullName = nil
+                pendingHeadingIndent = nil
+                pendingLineIndex = nil
                 currentRepositoryFullName = repositoryFullName
                 currentHeadingIndent = indent
                 currentChildHadIssueReferenceContext = false
                 currentChildHadCommitContext = false
                 consumedLineIndexes.insert(lineIndex)
+                repositoryFullNames.append(repositoryFullName)
+                continue
+            }
+
+            if let pendingFullName = pendingRepositoryFullName {
+                let pendingIndent = pendingHeadingIndent ?? indent
+                let pendingIndex = pendingLineIndex ?? lineIndex
+                if trimmed.isEmpty || indent <= pendingIndent {
+                    pendingRepositoryFullName = nil
+                    pendingHeadingIndent = nil
+                    pendingLineIndex = nil
+                } else if self.isRepositoryHeadingSummary(listItemBody ?? trimmed) {
+                    currentRepositoryFullName = pendingFullName
+                    currentHeadingIndent = pendingIndent
+                    currentChildHadIssueReferenceContext = false
+                    currentChildHadCommitContext = false
+                    consumedLineIndexes.insert(pendingIndex)
+                    consumedLineIndexes.insert(lineIndex)
+                    repositoryFullNames.append(pendingFullName)
+                    pendingRepositoryFullName = nil
+                    pendingHeadingIndent = nil
+                    pendingLineIndex = nil
+                    continue
+                } else {
+                    pendingRepositoryFullName = nil
+                    pendingHeadingIndent = nil
+                    pendingLineIndex = nil
+                }
+            }
+
+            let canStartRepositoryOnlyHeading = currentHeadingIndent.map { indent <= $0 } ?? true
+            let repositoryOnlyHeading = self.repositoryOnlyHeading(in: listItemBody ?? trimmed)
+            if canStartRepositoryOnlyHeading, let repositoryFullName = repositoryOnlyHeading {
+                currentRepositoryFullName = nil
+                currentHeadingIndent = nil
+                currentChildHadIssueReferenceContext = false
+                currentChildHadCommitContext = false
+                pendingRepositoryFullName = repositoryFullName
+                pendingHeadingIndent = indent
+                pendingLineIndex = lineIndex
                 continue
             }
 
@@ -114,7 +162,8 @@ extension GitHubReferenceTranslator {
         return RepositoryHeadingListBlockParse(
             entries: entries,
             consumedLineIndexes: consumedLineIndexes,
-            remainingText: remainingText
+            remainingText: remainingText,
+            repositoryFullNames: repositoryFullNames
         )
     }
 
@@ -130,9 +179,10 @@ extension GitHubReferenceTranslator {
             in: repositoryHeadingListBlockParse.remainingText,
             repositoryContextOverride: repositoryContextOverride
         )
-        let normalRepositoryContext = self.inferredRepositoryContext(
+        let normalRepositoryContext = self.normalRepositoryContext(
             in: repositoryHeadingListBlockParse.remainingText,
-            repositoryContextOverride: repositoryContextOverride
+            repositoryContextOverride: repositoryContextOverride,
+            consumedRepositoryFullNames: repositoryHeadingListBlockParse.repositoryFullNames
         )
         var normalLines: [String] = []
         var queries: [GitHubReferenceQuery] = []
@@ -216,6 +266,46 @@ extension GitHubReferenceTranslator {
             }
         }
         return self.dedupedQueries(queries)
+    }
+
+    private static func normalRepositoryContext(
+        in remainingText: String,
+        repositoryContextOverride: String?,
+        consumedRepositoryFullNames: [String]
+    ) -> String? {
+        guard repositoryContextOverride == nil else { return repositoryContextOverride }
+
+        if let context = self.repositoryContext(in: self.droppingRepositoryOnlyListItems(from: remainingText)) {
+            return context
+        }
+
+        guard let context = self.listItemRepositoryContext(in: remainingText) else { return nil }
+
+        let loweredContext = context.lowercased()
+        let hasDifferentConsumedRepository = consumedRepositoryFullNames.contains {
+            $0.lowercased() != loweredContext
+        }
+        return hasDifferentConsumedRepository ? nil : context
+    }
+
+    private static func droppingRepositoryOnlyListItems(from text: String) -> String {
+        text
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> String in
+                let line = String(line)
+                let listItemIsRepositoryOnly = self.listItemBody(in: line).map {
+                    self.repositoryOnlyHeading(in: $0) != nil
+                } ?? false
+                if listItemIsRepositoryOnly {
+                    return ""
+                }
+                if self.repositoryOnlyHeading(in: line) != nil {
+                    return ""
+                }
+
+                return line
+            }
+            .joined(separator: "\n")
     }
 
     private static func normalQueryIsAllowedByPrimaryURLShortcut(
@@ -313,6 +403,19 @@ extension GitHubReferenceTranslator {
         let prefixTokens = self.referenceTokens(in: String(listItemBody[..<colon]))
         guard prefixTokens.count == 1,
               let repositoryFullName = prefixTokens.first,
+              self.isRepositoryFullName(repositoryFullName)
+        else { return nil }
+
+        return repositoryFullName
+    }
+
+    private static func repositoryOnlyHeading(in listItemBody: String) -> String? {
+        let trimmed = listItemBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.contains(":") == false else { return nil }
+
+        let tokens = self.referenceTokens(in: trimmed)
+        guard tokens.count == 1,
+              let repositoryFullName = tokens.first,
               self.isRepositoryFullName(repositoryFullName)
         else { return nil }
 

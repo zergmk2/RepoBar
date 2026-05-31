@@ -252,7 +252,7 @@ struct TokenStoreTests {
         #expect(try store.allAccountIDs() == [accountID])
 
         store.clear(accountID: accountID)
-        #expect(try store.allAccountIDs() == [])
+        #expect(try store.allAccountIDs().isEmpty)
     }
 
     @Test
@@ -269,7 +269,7 @@ struct TokenStoreTests {
         try store.save(clientCredentials: OAuthClientCredentials(clientID: "c", clientSecret: "s"))
         try store.savePAT("legacy-pat")
 
-        #expect(try store.allAccountIDs() == [])
+        #expect(try store.allAccountIDs().isEmpty)
     }
 
     @Test
@@ -282,6 +282,6 @@ struct TokenStoreTests {
             storage: .file(directory)
         )
 
-        #expect(try store.allAccountIDs() == [])
+        #expect(try store.allAccountIDs().isEmpty)
     }
 }

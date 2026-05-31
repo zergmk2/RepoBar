@@ -395,6 +395,7 @@ private extension TokenStore {
         else {
             return []
         }
+
         return Set(ids)
     }
 
@@ -442,6 +443,7 @@ private extension TokenStore {
         var result: [String] = []
         for name in entries {
             guard name.hasPrefix(servicePrefix), name.hasSuffix(suffix) else { continue }
+
             let middle = String(name.dropFirst(servicePrefix.count).dropLast(suffix.count))
             // Skip legacy fixed-key entries.
             if middle == "default" || middle == "client" || middle == "pat" { continue }
@@ -475,16 +477,17 @@ private extension TokenStore {
             var items: CFTypeRef?
             let status = SecItemCopyMatching(query as CFDictionary, &items)
             guard status == errSecSuccess else { continue }
-            let entries: [[String: Any]]
-            if let many = items as? [[String: Any]] {
-                entries = many
+
+            let entries: [[String: Any]] = if let many = items as? [[String: Any]] {
+                many
             } else if let one = items as? [String: Any] {
-                entries = [one]
+                [one]
             } else {
-                entries = []
+                []
             }
             for entry in entries {
                 guard let account = entry[accountKey] as? String else { continue }
+
                 if account == "default" || account == "client" || account == "pat" { continue }
                 for kind in AccountKeyKind.allCases {
                     let trailing = ":\(kind.rawValue)"

@@ -171,10 +171,10 @@ final class AccountManager {
         let host = account.host
         await client.setTokenProvider { @Sendable [weak self] in
             // Prefer the manager's refresh path so OAuth credentials stay current.
-            if let strongSelf = self,
-               let token = try? await strongSelf.currentAccessToken(accountID: accountID)
-            {
-                return OAuthTokens(accessToken: token, refreshToken: "", expiresAt: nil)
+            if let strongSelf = self {
+                if let token = try? await strongSelf.currentAccessToken(accountID: accountID) {
+                    return OAuthTokens(accessToken: token, refreshToken: "", expiresAt: nil)
+                }
             }
             // Fallback to direct store reads in case the manager is gone.
             if let pat = try? store.loadPAT(accountID: accountID) {
@@ -200,7 +200,7 @@ final class AccountManager {
 
 /// Account-scoped wrapper around `OAuthTokenRefresher` semantics. Reuses the
 /// shared refresh request shape but reads/writes account-scoped Keychain keys.
-struct AccountScopedOAuthRefresher: Sendable {
+struct AccountScopedOAuthRefresher {
     let tokenStore: TokenStore
     let accountID: String
     let load: @Sendable (URLRequest) async throws -> (Data, URLResponse)

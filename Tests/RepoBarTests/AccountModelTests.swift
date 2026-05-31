@@ -5,31 +5,31 @@ import Testing
 struct AccountModelTests {
     @Test
     func `derives stable id for github_com`() throws {
-        let host = URL(string: "https://github.com")!
+        let host = try #require(URL(string: "https://github.com"))
         #expect(Account.deriveID(host: host, username: "Alice") == "github.com#alice")
         #expect(Account.deriveID(host: host, username: "alice") == "github.com#alice")
     }
 
     @Test
     func `derives stable id for enterprise host`() throws {
-        let host = URL(string: "https://GHE.Example.com")!
+        let host = try #require(URL(string: "https://GHE.Example.com"))
         #expect(Account.deriveID(host: host, username: "Bob") == "ghe.example.com#bob")
     }
 
     @Test
     func `derives api host for github_com and enterprise`() throws {
-        let github = URL(string: "https://github.com")!
+        let github = try #require(URL(string: "https://github.com"))
         #expect(Account.deriveAPIHost(for: github).absoluteString == "https://api.github.com")
 
-        let enterprise = URL(string: "https://ghe.example.com")!
+        let enterprise = try #require(URL(string: "https://ghe.example.com"))
         #expect(Account.deriveAPIHost(for: enterprise).absoluteString == "https://ghe.example.com/api/v3")
     }
 
     @Test
     func `convenience initializer derives id and api host`() throws {
-        let account = Account(
+        let account = try Account(
             username: "alice",
-            host: URL(string: "https://github.com")!,
+            host: #require(URL(string: "https://github.com")),
             authMethod: .oauth
         )
         #expect(account.id == "github.com#alice")
@@ -39,9 +39,9 @@ struct AccountModelTests {
 
     @Test
     func `convenience initializer respects custom display name`() throws {
-        let account = Account(
+        let account = try Account(
             username: "alice",
-            host: URL(string: "https://github.com")!,
+            host: #require(URL(string: "https://github.com")),
             authMethod: .pat,
             displayName: "Work"
         )
@@ -50,9 +50,9 @@ struct AccountModelTests {
 
     @Test
     func `codable round trip preserves fields`() throws {
-        let account = Account(
+        let account = try Account(
             username: "alice",
-            host: URL(string: "https://ghe.example.com")!,
+            host: #require(URL(string: "https://ghe.example.com")),
             authMethod: .oauth,
             loopbackPort: 1234,
             clientID: "client-xyz",
@@ -66,14 +66,14 @@ struct AccountModelTests {
 
 struct AccountSelectionTests {
     @Test
-    func `default selection is all`() throws {
+    func `default selection is all`() {
         let selection = AccountSelection.all
         #expect(selection.isVisible("any") == true)
         #expect(selection.visibleIDs == nil)
     }
 
     @Test
-    func `only selection filters by id`() throws {
+    func `only selection filters by id`() {
         let selection = AccountSelection.only(["github.com#alice"])
         #expect(selection.isVisible("github.com#alice") == true)
         #expect(selection.isVisible("github.com#bob") == false)
@@ -98,15 +98,15 @@ struct AccountSelectionTests {
 
 struct AccountScopedRepositoryListsTests {
     @Test
-    func `defaults are empty`() throws {
+    func `defaults are empty`() {
         let lists = AccountScopedRepositoryLists()
         #expect(lists.isEmpty)
-        #expect(lists.pinned(for: "github.com#alice") == [])
-        #expect(lists.hidden(for: "github.com#alice") == [])
+        #expect(lists.pinned(for: "github.com#alice").isEmpty)
+        #expect(lists.hidden(for: "github.com#alice").isEmpty)
     }
 
     @Test
-    func `set and read per account`() throws {
+    func `set and read per account`() {
         var lists = AccountScopedRepositoryLists()
         lists.setPinned(["a/b"], for: "github.com#alice")
         lists.setHidden(["c/d"], for: "github.com#alice")
@@ -116,21 +116,21 @@ struct AccountScopedRepositoryListsTests {
     }
 
     @Test
-    func `legacy fallback used when account entry is empty`() throws {
+    func `legacy fallback used when account entry is empty`() {
         let lists = AccountScopedRepositoryLists()
         #expect(lists.pinned(for: "github.com#alice", legacy: ["legacy/repo"]) == ["legacy/repo"])
         #expect(lists.hidden(for: "github.com#alice", legacy: ["legacy/repo"]) == ["legacy/repo"])
     }
 
     @Test
-    func `per-account entry shadows legacy`() throws {
+    func `per-account entry shadows legacy`() {
         var lists = AccountScopedRepositoryLists()
         lists.setPinned(["scoped/repo"], for: "github.com#alice")
         #expect(lists.pinned(for: "github.com#alice", legacy: ["legacy/repo"]) == ["scoped/repo"])
     }
 
     @Test
-    func `normalize trims and deduplicates case-insensitively`() throws {
+    func `normalize trims and deduplicates case-insensitively`() {
         var lists = AccountScopedRepositoryLists()
         lists.setPinned([" a/b ", "A/B", "c/d", ""], for: "github.com#alice")
         #expect(lists.pinned(for: "github.com#alice") == ["a/b", "c/d"])

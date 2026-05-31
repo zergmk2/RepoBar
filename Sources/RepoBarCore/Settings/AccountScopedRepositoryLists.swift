@@ -73,6 +73,7 @@ public struct AccountScopedRepositoryLists: Equatable, Codable, Sendable {
 
             let lower = trimmed.lowercased()
             guard seen.insert(lower).inserted else { return nil }
+
             return trimmed
         }
     }

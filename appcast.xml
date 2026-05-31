@@ -3,6 +3,25 @@
     <channel>
         <title>RepoBar</title>
         <item>
+            <title>0.6.6</title>
+            <pubDate>Tue, 26 May 2026 18:38:53 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>0.6.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>RepoBar 0.6.6</h2>
+<ul>
+<li>Open multi-reference GitHub detections in Issue Navigator on left click while keeping the preview menu on right click.</li>
+<li>Open Issue Navigator larger by default while clamping it to the visible screen.</li>
+<li>Add embedded Issue Navigator browser back navigation and reload an already-selected sidebar entry back to its original GitHub URL.</li>
+<li>Preload the first embedded Issue Navigator browser preview when the clipboard resolves to multiple GitHub references.</li>
+<li>Recognize numbered repository triage lists whose issue/PR count summary is on the next indented line.</li>
+</ul>
+<p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.6.6/RepoBar-0.6.6.zip" length="25009466" type="application/octet-stream" sparkle:edSignature="10dzsm+fL0krkWQ/j9iB/Fgkke3qJJCFi3Aq7zh8e+6ymL8CI2Qqk9guuHMdTlU/dnHOeDWU2fSp34knSOVDDQ=="/>
+        </item>
+        <item>
             <title>0.6.5</title>
             <pubDate>Sun, 24 May 2026 05:16:24 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
@@ -35,22 +54,6 @@
 <p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.6.4/RepoBar-0.6.4.zip" length="24726656" type="application/octet-stream" sparkle:edSignature="mm82gMc6xJZClRK3Nk2EDxL0WoXo+cW14Mlq4amEQCiAdvb8tkysL0fO83QfKLj1xe2Kcv0ZGaB1Q5629S4IAA=="/>
-        </item>
-        <item>
-            <title>0.6.3</title>
-            <pubDate>Fri, 22 May 2026 07:46:23 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
-            <sparkle:version>16</sparkle:version>
-            <sparkle:shortVersionString>0.6.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>RepoBar 0.6.3</h2>
-<ul>
-<li>Make the Settings Repository table columns sortable (thanks @XueshiQiao).</li>
-<li>Improve copied GitHub reference parsing for maintainer triage lists so bullet-leading references stay prioritized, compound issue lists resolve, and status counts are ignored.</li>
-</ul>
-<p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.6.3/RepoBar-0.6.3.zip" length="24724467" type="application/octet-stream" sparkle:edSignature="Mp9npRjgfYDdlCbk+pjU4mV86mkxOFH7KxLKJeBGJ321f/iYhSBbQU/Qdd/Q18hkCCtP2jBngRLIKT9vcSI1Bg=="/>
         </item>
     </channel>
 </rss>

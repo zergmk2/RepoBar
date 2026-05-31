@@ -133,7 +133,7 @@ extension AppState {
                 try? TokenStore.shared.save(clientCredentials: creds, accountID: account.id)
             }
         case .pat:
-            let token = pat ?? (try? TokenStore.shared.loadPAT()) ?? nil
+            let token = pat ?? (try? TokenStore.shared.loadPAT())
             if let token {
                 try? TokenStore.shared.savePAT(token, accountID: account.id)
             }

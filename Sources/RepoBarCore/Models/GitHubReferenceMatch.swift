@@ -83,6 +83,17 @@ public enum GitHubReferenceQuery: Sendable, Hashable {
 
         return (parts[0], parts[1])
     }
+
+    public var issueNumber: Int? {
+        switch self {
+        case let .issueNumber(number),
+             let .repositoryNameIssueNumber(_, number),
+             let .repositoryIssueNumber(_, number):
+            number
+        case .commitHash, .repositoryCommitHash, .repositoryWorkflowRun:
+            nil
+        }
+    }
 }
 
 public struct GitHubReferenceMatch: Sendable, Hashable {

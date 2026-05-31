@@ -39,7 +39,9 @@ struct TaggedRepo: Identifiable, Equatable {
     var repo: Repository
     let accountID: String
 
-    var id: String { "\(self.accountID)|\(self.repo.id)" }
+    var id: String {
+        "\(self.accountID)|\(self.repo.id)"
+    }
 }
 
 extension Session {

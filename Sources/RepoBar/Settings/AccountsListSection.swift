@@ -33,7 +33,6 @@ struct AccountsListSection: View {
         }
     }
 
-    @ViewBuilder
     private func row(for account: Account) -> some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: account.id == self.session.settings.activeAccountID ? "checkmark.circle.fill" : "circle")
@@ -108,9 +107,9 @@ struct AccountsListSection: View {
     private var visibilitySummary: String {
         switch self.session.settings.accountSelection {
         case .all:
-            return "All accounts visible in menu."
+            "All accounts visible in menu."
         case let .only(ids):
-            return "Showing \(ids.count) of \(self.session.settings.accounts.count) accounts in menu."
+            "Showing \(ids.count) of \(self.session.settings.accounts.count) accounts in menu."
         }
     }
 
@@ -127,12 +126,11 @@ struct AccountsListSection: View {
 
     private func setVisibility(accountID: String, visible: Bool) {
         let allIDs = Set(self.session.settings.accounts.map(\.id))
-        let current: Set<String>
-        switch self.session.settings.accountSelection {
+        let current: Set<String> = switch self.session.settings.accountSelection {
         case .all:
-            current = allIDs
+            allIDs
         case let .only(ids):
-            current = ids
+            ids
         }
         var next = current
         if visible {

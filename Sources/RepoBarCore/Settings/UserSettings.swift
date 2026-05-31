@@ -148,10 +148,10 @@ public struct UserSettings: Equatable, Codable {
 
     /// Resolves the active account, falling back to the only configured account.
     public func resolvedActiveAccount() -> Account? {
-        if let activeAccountID,
-           let account = self.accounts.first(where: { $0.id == activeAccountID })
-        {
-            return account
+        if let activeAccountID {
+            if let account = self.accounts.first(where: { $0.id == activeAccountID }) {
+                return account
+            }
         }
         if self.accounts.count == 1 {
             return self.accounts.first

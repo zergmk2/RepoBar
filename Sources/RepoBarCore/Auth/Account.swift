@@ -98,18 +98,18 @@ public enum AccountSelection: Equatable, Hashable, Sendable {
     public func isVisible(_ accountID: String) -> Bool {
         switch self {
         case .all:
-            return true
+            true
         case let .only(ids):
-            return ids.contains(accountID)
+            ids.contains(accountID)
         }
     }
 
     public var visibleIDs: Set<String>? {
         switch self {
         case .all:
-            return nil
+            nil
         case let .only(ids):
-            return ids
+            ids
         }
     }
 }
