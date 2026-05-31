@@ -64,13 +64,13 @@ extension AppState {
             clientID: legacyCreds?.clientID
         )
 
-        if let oauthTokens {
+        if preferredMethod == .oauth, let oauthTokens {
             try? tokenStore.save(tokens: oauthTokens, accountID: account.id)
         }
-        if let legacyCreds {
+        if preferredMethod == .oauth, let legacyCreds {
             try? tokenStore.save(clientCredentials: legacyCreds, accountID: account.id)
         }
-        if let legacyPAT {
+        if preferredMethod == .pat, let legacyPAT {
             try? tokenStore.savePAT(legacyPAT, accountID: account.id)
         }
         // Keep legacy fixed keys until the primary refresh path is fully

@@ -94,12 +94,15 @@ final class AppState {
                 try? await Task.sleep(for: .seconds(self.tokenRefreshInterval))
             }
         }
-        // Bootstrap account manager and run legacy migration if needed.
-        // Done after the rest of init so existing single-account code paths see
-        // the new state on the first refresh tick.
-        Task { [weak self] in await self?.bootstrapAccounts() }
-        self.refreshScheduler.configure(interval: self.session.settings.refreshInterval.seconds) { [weak self] in
-            self?.requestRefresh()
+        // Bootstrap account manager before the first scheduled refresh so
+        // account-scoped credentials are available to the token provider.
+        Task { [weak self] in
+            guard let self else { return }
+
+            await self.bootstrapAccounts()
+            self.refreshScheduler.configure(interval: self.session.settings.refreshInterval.seconds) { [weak self] in
+                self?.requestRefresh()
+            }
         }
         Task { await DiagnosticsLogger.shared.setEnabled(self.session.settings.diagnosticsEnabled) }
         Task { [weak self] in
