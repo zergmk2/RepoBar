@@ -256,6 +256,28 @@ struct TokenStoreTests {
     }
 
     @Test
+    func `file storage account scoped keys do not collide after filename encoding`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("repobar-token-store-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = TokenStore(
+            service: "com.steipete.repobar.auth.tests.\(UUID().uuidString)",
+            storage: .file(directory)
+        )
+        let colonID = "ghe.example.com:8443#alice"
+        let dashID = "ghe.example.com-8443#alice"
+        let colonTokens = OAuthTokens(accessToken: "colon", refreshToken: "colon-r", expiresAt: nil)
+        let dashTokens = OAuthTokens(accessToken: "dash", refreshToken: "dash-r", expiresAt: nil)
+
+        try store.save(tokens: colonTokens, accountID: colonID)
+        try store.save(tokens: dashTokens, accountID: dashID)
+
+        #expect(try store.loadTokens(accountID: colonID) == colonTokens)
+        #expect(try store.loadTokens(accountID: dashID) == dashTokens)
+        #expect(try Set(store.allAccountIDs()) == [colonID, dashID])
+    }
+
+    @Test
     func `file storage legacy wrappers do not register fixed keys in account index`() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("repobar-token-store-\(UUID().uuidString)", isDirectory: true)

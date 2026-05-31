@@ -391,9 +391,33 @@ private extension TokenStore {
     }
 
     func fileURL(account: String, directory: URL) -> URL {
-        let serviceName = self.sanitizedFileComponent(self.service)
-        let accountName = self.sanitizedFileComponent(account)
+        let serviceName = self.encodedFileComponent(self.service)
+        let accountName = self.encodedFileComponent(account)
         return directory.appendingPathComponent("\(serviceName)-\(accountName).json", isDirectory: false)
+    }
+
+    func encodedFileComponent(_ value: String) -> String {
+        let hex = value.utf8.map { String(format: "%02x", $0) }.joined()
+        return "v2-\(hex)"
+    }
+
+    func decodedFileComponent(_ value: String) -> String? {
+        guard value.hasPrefix("v2-") else { return nil }
+
+        let hex = String(value.dropFirst(3))
+        guard hex.count.isMultiple(of: 2) else { return nil }
+
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(hex.count / 2)
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index ..< next], radix: 16) else { return nil }
+
+            bytes.append(byte)
+            index = next
+        }
+        return String(data: Data(bytes), encoding: .utf8)
     }
 
     func sanitizedFileComponent(_ value: String) -> String {
@@ -410,7 +434,7 @@ private extension TokenStore {
     }
 
     func accountIndexURL(directory: URL) -> URL {
-        let serviceName = self.sanitizedFileComponent(self.service)
+        let serviceName = self.encodedFileComponent(self.service)
         return directory.appendingPathComponent("\(serviceName)-accounts-index.json", isDirectory: false)
     }
 
@@ -465,13 +489,32 @@ private extension TokenStore {
             return []
         }
 
-        let servicePrefix = "\(self.sanitizedFileComponent(self.service))-"
+        let servicePrefixes = [
+            "\(self.encodedFileComponent(self.service))-",
+            "\(self.sanitizedFileComponent(self.service))-"
+        ]
         let suffix = ".json"
         var result: [String] = []
         for name in entries {
-            guard name.hasPrefix(servicePrefix), name.hasSuffix(suffix) else { continue }
+            guard name.hasSuffix(suffix),
+                  let servicePrefix = servicePrefixes.first(where: { name.hasPrefix($0) })
+            else {
+                continue
+            }
 
             let middle = String(name.dropFirst(servicePrefix.count).dropLast(suffix.count))
+            if let decoded = self.decodedFileComponent(middle) {
+                if decoded == "default" || decoded == "client" || decoded == "pat" { continue }
+                for kind in AccountKeyKind.allCases {
+                    let trailing = ":\(kind.rawValue)"
+                    if decoded.hasSuffix(trailing), decoded.count > trailing.count {
+                        result.append(String(decoded.dropLast(trailing.count)))
+                        break
+                    }
+                }
+                continue
+            }
+
             // Skip legacy fixed-key entries.
             if middle == "default" || middle == "client" || middle == "pat" { continue }
             for kind in AccountKeyKind.allCases {
