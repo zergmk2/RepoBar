@@ -65,6 +65,7 @@ final class AppState {
                     if let token = try? await self.accountManager.currentAccessToken(accountID: accountID) {
                         return OAuthTokens(accessToken: token, refreshToken: "", expiresAt: nil)
                     }
+                    return nil
                 }
 
                 let authMethod = await MainActor.run { self.session.settings.authMethod }

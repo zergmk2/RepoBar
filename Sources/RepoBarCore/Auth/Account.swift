@@ -3,7 +3,7 @@ import Foundation
 /// Represents a single GitHub identity (account) configured in RepoBar.
 ///
 /// Account identity is stable across re-login: the `id` is derived from
-/// `host` host component + `username`, so the same user signing back in
+/// `host` authority + `username`, so the same user signing back in
 /// on the same host always resolves to the same record.
 public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
     public let id: String
@@ -50,7 +50,7 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
     ) {
         let id = Account.deriveID(host: host, username: username)
         let apiHost = Account.deriveAPIHost(for: host)
-        let hostLabel = host.host ?? "github.com"
+        let hostLabel = Account.hostAuthority(for: host)
         self.init(
             id: id,
             displayName: displayName ?? "\(username) @ \(hostLabel)",
@@ -64,11 +64,19 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
         )
     }
 
-    /// Stable account ID, e.g. `github.com#alice` or `ghe.example.com#bob`.
+    /// Stable account ID, e.g. `github.com#alice` or `ghe.example.com:8443#bob`.
     public static func deriveID(host: URL, username: String) -> String {
-        let hostName = (host.host ?? "github.com").lowercased()
+        let hostName = self.hostAuthority(for: host)
         let user = username.lowercased()
         return "\(hostName)#\(user)"
+    }
+
+    public static func hostAuthority(for host: URL) -> String {
+        let hostName = (host.host ?? "github.com").lowercased()
+        if let port = host.port {
+            return "\(hostName):\(port)"
+        }
+        return hostName
     }
 
     /// Resolves the REST API host for a given GitHub web host.
@@ -85,7 +93,7 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
 
     /// Human-friendly label, e.g. `alice @ github.com`.
     public var usernameAtHost: String {
-        let hostName = self.host.host ?? "github.com"
+        let hostName = Self.hostAuthority(for: self.host)
         return "\(self.username) @ \(hostName)"
     }
 }

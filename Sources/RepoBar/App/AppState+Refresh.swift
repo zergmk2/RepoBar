@@ -52,7 +52,7 @@ extension AppState {
             if Task.isCancelled { return }
             let now = Date()
             self.updateHeatmapRange(now: now)
-            if self.auth.loadTokens() == nil, self.patAuth.loadPAT() == nil {
+            if await self.hasAuthenticationMaterial() == false {
                 let localSnapshot = await self.snapshotForLoggedOutState(localSettings: localSettings)
                 await self.applyLoggedOutState(localSnapshot: localSnapshot, lastError: nil)
                 return
@@ -150,6 +150,14 @@ extension AppState {
             }
             await self.refreshActionsLimitsState()
         }
+    }
+
+    private func hasAuthenticationMaterial() async -> Bool {
+        if let accountID = self.session.settings.resolvedActiveAccount()?.id {
+            let token = try? await self.accountManager.currentAccessToken(accountID: accountID)
+            return token != nil
+        }
+        return self.auth.loadTokens() != nil || self.patAuth.loadPAT() != nil
     }
 
     func refreshLocalProjects(cancelInFlight: Bool = true, forceRescan: Bool = false) {

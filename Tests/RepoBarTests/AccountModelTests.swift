@@ -17,6 +17,14 @@ struct AccountModelTests {
     }
 
     @Test
+    func `derives distinct ids for enterprise host ports`() throws {
+        let defaultPort = try #require(URL(string: "https://ghe.example.com"))
+        let customPort = try #require(URL(string: "https://ghe.example.com:8443"))
+        #expect(Account.deriveID(host: defaultPort, username: "Bob") == "ghe.example.com#bob")
+        #expect(Account.deriveID(host: customPort, username: "Bob") == "ghe.example.com:8443#bob")
+    }
+
+    @Test
     func `derives api host for github_com and enterprise`() throws {
         let github = try #require(URL(string: "https://github.com"))
         #expect(Account.deriveAPIHost(for: github).absoluteString == "https://api.github.com")
