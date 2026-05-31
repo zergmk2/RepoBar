@@ -4,9 +4,7 @@ import RepoBarCore
 extension StatusBarMenuManager {
     @objc func logOut() {
         Task { @MainActor in
-            await self.appState.auth.logout()
-            self.appState.session.account = .loggedOut
-            self.appState.session.hasStoredTokens = false
+            await self.appState.logoutCurrentMethod()
             self.appState.session.repositories = []
         }
     }

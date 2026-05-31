@@ -33,7 +33,7 @@ func makeAuthenticatedClient() async throws -> AuthContext {
         let client = GitHubClient(accountID: account.id)
         await client.setAPIHost(account.apiHost)
         await client.setTokenProvider { @Sendable () async throws -> OAuthTokens? in
-            if let pat = try? TokenStore.shared.loadPAT(accountID: account.id) {
+            if account.authMethod == .pat, let pat = try? TokenStore.shared.loadPAT(accountID: account.id) {
                 return OAuthTokens(accessToken: pat, refreshToken: "", expiresAt: nil)
             }
             return try await OAuthTokenRefresher().refreshIfNeeded(
