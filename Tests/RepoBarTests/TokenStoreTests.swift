@@ -273,6 +273,49 @@ struct TokenStoreTests {
     }
 
     @Test
+    func `file storage mirrors scoped oauth credentials to legacy fixed keys`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("repobar-token-store-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = TokenStore(
+            service: "com.steipete.repobar.auth.tests.\(UUID().uuidString)",
+            storage: .file(directory)
+        )
+        let tokens = OAuthTokens(accessToken: "active", refreshToken: "refresh", expiresAt: nil)
+        let credentials = OAuthClientCredentials(clientID: "cid", clientSecret: "secret")
+
+        try store.savePAT("stale-pat")
+        try store.save(tokens: tokens, accountID: "github.com#alice")
+        try store.save(clientCredentials: credentials, accountID: "github.com#alice")
+
+        #expect(store.mirrorAccountCredentialsToLegacy(accountID: "github.com#alice", authMethod: .oauth))
+        #expect(try store.load() == tokens)
+        #expect(try store.loadClientCredentials() == credentials)
+        #expect(try store.loadPAT() == nil)
+    }
+
+    @Test
+    func `file storage mirrors scoped PAT to legacy fixed key and clears stale oauth`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("repobar-token-store-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = TokenStore(
+            service: "com.steipete.repobar.auth.tests.\(UUID().uuidString)",
+            storage: .file(directory)
+        )
+        let staleTokens = OAuthTokens(accessToken: "stale", refreshToken: "stale-r", expiresAt: nil)
+
+        try store.save(tokens: staleTokens)
+        try store.save(clientCredentials: OAuthClientCredentials(clientID: "old", clientSecret: "old-secret"))
+        try store.savePAT("active-pat", accountID: "github.com#alice")
+
+        #expect(store.mirrorAccountCredentialsToLegacy(accountID: "github.com#alice", authMethod: .pat))
+        #expect(try store.load() == nil)
+        #expect(try store.loadClientCredentials() == nil)
+        #expect(try store.loadPAT() == "active-pat")
+    }
+
+    @Test
     func `file storage allAccountIDs returns empty when directory missing`() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("repobar-token-store-\(UUID().uuidString)", isDirectory: true)

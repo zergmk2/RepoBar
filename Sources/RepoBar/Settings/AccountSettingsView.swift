@@ -380,7 +380,6 @@ struct AccountSettingsView: View {
 
             if self.hostMode == .enterprise, let enterpriseURL {
                 self.session.settings.enterpriseHost = enterpriseURL
-                await self.appState.github.setAPIHost(enterpriseURL.appending(path: "/api/v3"))
                 self.session.settings.githubHost = enterpriseURL
                 self.validationError = nil
             } else {
@@ -389,7 +388,6 @@ struct AccountSettingsView: View {
                     self.session.account = .loggedOut
                     return
                 }
-                await self.appState.github.setAPIHost(URL(string: "https://api.github.com")!)
                 self.session.settings.githubHost = URL(string: "https://github.com")!
                 self.session.settings.enterpriseHost = nil
                 self.validationError = nil

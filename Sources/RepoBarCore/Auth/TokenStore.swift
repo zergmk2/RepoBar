@@ -150,6 +150,33 @@ public struct TokenStore: Sendable {
         self.removeAccountFromIndex(accountID)
     }
 
+    @discardableResult
+    public func mirrorAccountCredentialsToLegacy(accountID: String, authMethod: AuthMethod) -> Bool {
+        switch authMethod {
+        case .oauth:
+            guard let tokens = try? self.loadTokens(accountID: accountID) else {
+                self.clear()
+                return false
+            }
+
+            self.clear()
+            try? self.save(tokens: tokens)
+            if let credentials = try? self.loadClientCredentials(accountID: accountID) {
+                try? self.save(clientCredentials: credentials)
+            }
+            return true
+        case .pat:
+            guard let pat = try? self.loadPAT(accountID: accountID) else {
+                self.clear()
+                return false
+            }
+
+            self.clear()
+            try? self.savePAT(pat)
+            return true
+        }
+    }
+
     public func allAccountIDs() throws -> [String] {
         var found = Set<String>()
         switch self.storage {

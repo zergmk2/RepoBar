@@ -159,6 +159,7 @@ extension AppState {
         }
         self.session.settings.activeAccountID = account.id
         self.mirrorActiveAccountIntoSettings(account)
+        self.mirrorActiveAccountCredentialsToLegacy(account)
         self.session.activeAccountID = self.accountManager.activeAccountID
         await self.syncPrimaryGitHubClientToActiveAccount()
         self.session.accountSessions = self.session.settings.accounts.map { existing in
@@ -178,6 +179,7 @@ extension AppState {
         self.session.settings.activeAccountID = accountID
         if let active = self.accountManager.activeAccount() {
             self.mirrorActiveAccountIntoSettings(active)
+            self.mirrorActiveAccountCredentialsToLegacy(active)
         }
         self.persistSettings()
         await self.syncPrimaryGitHubClientToActiveAccount()
@@ -188,8 +190,6 @@ extension AppState {
 
     /// Removes an account, clears its tokens, and updates the active selection.
     func removeAccount(_ accountID: String) async {
-        let removesLegacyBackedAccount = self.session.settings.activeAccountID == accountID
-            || self.session.settings.accounts.count <= 1
         await self.accountManager.remove(accountID: accountID)
         self.session.settings.accounts.removeAll(where: { $0.id == accountID })
         self.session.accountSessions.removeAll(where: { $0.id == accountID })
@@ -199,10 +199,9 @@ extension AppState {
         }
         if let active = self.accountManager.activeAccount() {
             self.mirrorActiveAccountIntoSettings(active)
-        }
-        if removesLegacyBackedAccount {
+            self.mirrorActiveAccountCredentialsToLegacy(active)
+        } else {
             TokenStore.shared.clear()
-            TokenStore.shared.clearPAT()
         }
         await self.syncPrimaryGitHubClientToActiveAccount()
         await self.refreshSessionIdentityFromActiveClient()
@@ -242,5 +241,12 @@ extension AppState {
         self.session.settings.enterpriseHost = account.host.host?.lowercased() == "github.com" ? nil : account.host
         self.session.settings.authMethod = account.authMethod
         self.session.settings.loopbackPort = account.loopbackPort
+    }
+
+    private func mirrorActiveAccountCredentialsToLegacy(_ account: Account) {
+        _ = TokenStore.shared.mirrorAccountCredentialsToLegacy(
+            accountID: account.id,
+            authMethod: account.authMethod
+        )
     }
 }
