@@ -164,7 +164,7 @@ final class AccountManager {
     // MARK: - Private
 
     private func makeClient(for account: Account) async {
-        let client = GitHubClient()
+        let client = GitHubClient(accountID: account.id)
         await client.setAPIHost(account.apiHost)
         let accountID = account.id
         let store = self.tokenStore

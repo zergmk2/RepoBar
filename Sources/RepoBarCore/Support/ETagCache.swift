@@ -19,6 +19,10 @@ actor ETagCache {
         ETagCache(maxEntries: maxEntries, persistentStore: HTTPResponseDiskCache.standard())
     }
 
+    static func persistent(accountID: String?, maxEntries: Int = ETagCache.defaultMaxEntries) -> ETagCache {
+        ETagCache(maxEntries: maxEntries, persistentStore: HTTPResponseDiskCache.scoped(accountID: accountID))
+    }
+
     func cached(for url: URL) -> (etag: String, data: Data)? {
         let key = url.absoluteString
         if let cached = self.store[key] {

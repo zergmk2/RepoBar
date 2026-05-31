@@ -5,7 +5,7 @@ actor GraphQLClient {
     private var endpoint: URL = .init(string: "https://api.github.com/graphql")!
     private var tokenProvider: (@Sendable () async throws -> String)?
     private var rateLimit: RateLimitSnapshot?
-    private let responseCache = GraphQLResponseDiskCache.standard()
+    private let responseCache: GraphQLResponseDiskCache?
     private let responseCacheTTL: TimeInterval = 15 * 60
     private let requestLimiter = AsyncPermitPool(limit: 4)
     private let decoder: JSONDecoder = {
@@ -15,6 +15,10 @@ actor GraphQLClient {
     }()
 
     private let diag = DiagnosticsLogger.shared
+
+    init(responseCache: GraphQLResponseDiskCache? = GraphQLResponseDiskCache.standard()) {
+        self.responseCache = responseCache
+    }
 
     func setEndpoint(apiHost: URL) {
         // For GitHub.com apiHost is https://api.github.com

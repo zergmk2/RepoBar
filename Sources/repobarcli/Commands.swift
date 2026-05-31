@@ -505,10 +505,10 @@ struct LogoutCommand: CommanderRunnableCommand {
     mutating func run() async throws {
         let store = SettingsStore()
         var settings = store.load()
-        // Legacy single-account clear for backwards compatibility.
-        TokenStore.shared.clear()
 
         if self.all {
+            TokenStore.shared.clear()
+            TokenStore.shared.clearPAT()
             for account in settings.accounts {
                 TokenStore.shared.clear(accountID: account.id)
             }
@@ -520,12 +520,20 @@ struct LogoutCommand: CommanderRunnableCommand {
         }
 
         if settings.accounts.isEmpty {
+            TokenStore.shared.clear()
+            TokenStore.shared.clearPAT()
             print("Logged out.")
             return
         }
 
         let resolved = try AccountResolver.resolve(self.account, settings: settings)
+        let removesLegacyBackedAccount = settings.activeAccountID == resolved.id
+            || settings.accounts.count <= 1
         TokenStore.shared.clear(accountID: resolved.id)
+        if removesLegacyBackedAccount {
+            TokenStore.shared.clear()
+            TokenStore.shared.clearPAT()
+        }
         settings.accounts.removeAll(where: { $0.id == resolved.id })
         if settings.activeAccountID == resolved.id {
             settings.activeAccountID = settings.accounts.first?.id

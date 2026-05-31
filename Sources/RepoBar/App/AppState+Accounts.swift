@@ -21,6 +21,7 @@ extension AppState {
             }
         }
         await manager.bootstrap(from: self.session.settings)
+        await self.syncPrimaryGitHubClientToActiveAccount()
         self.session.activeAccountID = manager.activeAccountID
         self.session.accountSessions = self.session.settings.accounts.map { account in
             AccountSession(account: account)
@@ -147,6 +148,7 @@ extension AppState {
             self.session.settings.activeAccountID = account.id
         }
         self.session.activeAccountID = self.accountManager.activeAccountID
+        await self.syncPrimaryGitHubClientToActiveAccount()
         self.session.accountSessions = self.session.settings.accounts.map { existing in
             if let current = self.session.accountSessions.first(where: { $0.id == existing.id }) {
                 return current
@@ -163,12 +165,15 @@ extension AppState {
         self.session.activeAccountID = accountID
         self.session.settings.activeAccountID = accountID
         self.persistSettings()
+        await self.syncPrimaryGitHubClientToActiveAccount()
         // Trigger a refresh so the menu reflects the new active account.
         self.requestRefresh(cancelInFlight: true)
     }
 
     /// Removes an account, clears its tokens, and updates the active selection.
     func removeAccount(_ accountID: String) async {
+        let removesLegacyBackedAccount = self.session.settings.activeAccountID == accountID
+            || self.session.settings.accounts.count <= 1
         await self.accountManager.remove(accountID: accountID)
         self.session.settings.accounts.removeAll(where: { $0.id == accountID })
         self.session.accountSessions.removeAll(where: { $0.id == accountID })
@@ -176,6 +181,11 @@ extension AppState {
             self.session.settings.activeAccountID = self.session.settings.accounts.first?.id
             self.session.activeAccountID = self.session.settings.activeAccountID
         }
+        if removesLegacyBackedAccount {
+            TokenStore.shared.clear()
+            TokenStore.shared.clearPAT()
+        }
+        await self.syncPrimaryGitHubClientToActiveAccount()
         // Drop any per-account pinned/hidden lists for the removed account.
         var lists = self.session.settings.accountRepoLists
         lists.pinnedByAccount.removeValue(forKey: accountID)
@@ -183,5 +193,13 @@ extension AppState {
         self.session.settings.accountRepoLists = lists
         self.persistSettings()
         self.requestRefresh(cancelInFlight: true)
+    }
+
+    private func syncPrimaryGitHubClientToActiveAccount() async {
+        if let active = self.accountManager.activeAccount() {
+            await self.github.setAPIHost(active.apiHost)
+        } else {
+            await self.github.setAPIHost(self.defaultAPIHost)
+        }
     }
 }

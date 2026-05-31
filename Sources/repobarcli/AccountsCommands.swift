@@ -126,7 +126,13 @@ struct AccountsRemoveCommand: CommanderRunnableCommand {
         let store = SettingsStore()
         var settings = store.load()
         let account = try AccountResolver.resolve(self.target, settings: settings)
+        let removesLegacyBackedAccount = settings.activeAccountID == account.id
+            || settings.accounts.count <= 1
         TokenStore.shared.clear(accountID: account.id)
+        if removesLegacyBackedAccount {
+            TokenStore.shared.clear()
+            TokenStore.shared.clearPAT()
+        }
         settings.accounts.removeAll(where: { $0.id == account.id })
         if settings.activeAccountID == account.id {
             settings.activeAccountID = settings.accounts.first?.id

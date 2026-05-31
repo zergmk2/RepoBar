@@ -8,9 +8,10 @@ public actor GitHubClient {
     public var apiHost: URL = .init(string: "https://api.github.com")!
     private let tokenStore = TokenStore.shared
     private var tokenProvider: (@Sendable () async throws -> OAuthTokens?)?
-    private let graphQL = GraphQLClient()
+    private let graphQL: GraphQLClient
     private let diag = DiagnosticsLogger.shared
-    private let requestRunner = GitHubRequestRunner()
+    private let requestRunner: GitHubRequestRunner
+    private let responseDiskCache: HTTPResponseDiskCache?
     private lazy var restAPI = GitHubRestAPI(
         apiHost: { [weak self] in await self?.apiHost ?? URL(string: "https://api.github.com")! },
         tokenProvider: { [weak self] in
@@ -19,7 +20,8 @@ public actor GitHubClient {
             return try await self.validAccessToken()
         },
         requestRunner: requestRunner,
-        diag: diag
+        diag: diag,
+        responseDiskCache: responseDiskCache
     )
     private lazy var repoDetailCoordinator = RepoDetailCoordinator(
         restAPI: restAPI,
@@ -30,7 +32,11 @@ public actor GitHubClient {
     private var prefetchedReposExpiry: Date?
     private var inflightRepoDetails: [String: Task<Repository, Error>] = [:]
 
-    public init() {}
+    public init(accountID: String? = nil) {
+        self.responseDiskCache = HTTPResponseDiskCache.scoped(accountID: accountID)
+        self.requestRunner = GitHubRequestRunner(etagCache: ETagCache.persistent(accountID: accountID))
+        self.graphQL = GraphQLClient(responseCache: GraphQLResponseDiskCache.scoped(accountID: accountID))
+    }
 
     // MARK: - Config
 

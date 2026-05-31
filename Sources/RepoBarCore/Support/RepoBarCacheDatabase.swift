@@ -150,7 +150,13 @@ final class HTTPResponseDiskCache: @unchecked Sendable {
     }
 
     static func standard() -> HTTPResponseDiskCache? {
-        guard let path = standardDatabaseURL()?.path else { return nil }
+        self.scoped(accountID: nil)
+    }
+
+    static func scoped(accountID: String?) -> HTTPResponseDiskCache? {
+        let url = self.databaseURL(accountID: accountID)
+            ?? self.standardDatabaseURL()
+        guard let path = url?.path else { return nil }
 
         do {
             return try HTTPResponseDiskCache(path: path)
