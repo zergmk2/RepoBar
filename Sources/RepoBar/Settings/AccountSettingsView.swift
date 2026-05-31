@@ -33,7 +33,7 @@ struct AccountSettingsView: View {
                 .pickerStyle(.segmented)
 
                 switch self.session.account {
-                case let .loggedIn(user):
+                case let .loggedIn(user) where self.session.settings.accounts.isEmpty:
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .top, spacing: 12) {
                             HStack(spacing: 10) {
@@ -417,12 +417,13 @@ struct AccountSettingsView: View {
                 self.session.settings.authMethod = .oauth
                 self.appState.persistSettings()
                 self.session.hasStoredTokens = true
-                if let user = try? await appState.github.currentUser() {
+                let loginHost = self.session.settings.enterpriseHost ?? self.session.settings.githubHost
+                if let user = await self.appState.currentUserFromLegacyCredentials(host: loginHost) {
                     self.session.account = .loggedIn(user)
                     self.session.lastError = nil
                     await self.appState.recordAccountForLogin(
                         user: user,
-                        host: self.session.settings.enterpriseHost ?? self.session.settings.githubHost,
+                        host: loginHost,
                         method: .oauth
                     )
                 } else {

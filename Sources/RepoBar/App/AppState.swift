@@ -11,7 +11,8 @@ final class AppState {
     var session = Session()
     let auth = OAuthCoordinator()
     let patAuth = PATAuthenticator()
-    let github = GitHubClient()
+    let legacyGitHub: GitHubClient
+    var github: GitHubClient
     let accountManager = AccountManager()
     let refreshScheduler = RefreshScheduler()
     let settingsStore = SettingsStore()
@@ -39,6 +40,9 @@ final class AppState {
     let defaultAPIHost = RepoBarAuthDefaults.apiHost
 
     init() {
+        let legacyGitHub = GitHubClient()
+        self.legacyGitHub = legacyGitHub
+        self.github = legacyGitHub
         self.session.settings = self.settingsStore.load()
         self.reloadRateLimitCacheSummary()
         RepoBarLogging.bootstrapIfNeeded()

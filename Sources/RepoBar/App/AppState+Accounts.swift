@@ -95,6 +95,14 @@ extension AppState {
         return try? await probe.currentUser()
     }
 
+    func currentUserFromLegacyCredentials(host: URL) async -> UserIdentity? {
+        await self.probeLegacyIdentity(
+            host: host,
+            oauthTokens: try? TokenStore.shared.load(),
+            pat: try? TokenStore.shared.loadPAT()
+        )
+    }
+
     private func fallbackUsernameFromSettings() -> String? {
         if case let .loggedIn(identity) = self.session.account, identity.username.isEmpty == false {
             return identity.username
@@ -197,9 +205,13 @@ extension AppState {
 
     private func syncPrimaryGitHubClientToActiveAccount() async {
         if let active = self.accountManager.activeAccount() {
-            await self.github.setAPIHost(active.apiHost)
-        } else {
-            await self.github.setAPIHost(self.defaultAPIHost)
+            if let client = self.accountManager.activeClient() {
+                self.github = client
+                await self.github.setAPIHost(active.apiHost)
+                return
+            }
         }
+        self.github = self.legacyGitHub
+        await self.github.setAPIHost(self.defaultAPIHost)
     }
 }

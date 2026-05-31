@@ -68,6 +68,15 @@ extension AppState {
 
     /// Logs out the current user, clearing tokens based on the current auth method.
     func logoutCurrentMethod() async {
+        if let accountID = self.session.settings.resolvedActiveAccount()?.id {
+            await self.removeAccount(accountID)
+            if self.session.settings.accounts.isEmpty {
+                self.session.account = .loggedOut
+                self.session.hasStoredTokens = false
+            }
+            return
+        }
+
         await self.auth.logout()
         await self.patAuth.logout()
         self.session.account = .loggedOut
