@@ -420,6 +420,11 @@ struct AccountSettingsView: View {
                 if let user = try? await appState.github.currentUser() {
                     self.session.account = .loggedIn(user)
                     self.session.lastError = nil
+                    await self.appState.recordAccountForLogin(
+                        user: user,
+                        host: self.session.settings.enterpriseHost ?? self.session.settings.githubHost,
+                        method: .oauth
+                    )
                 } else {
                     self.session.account = .loggedIn(UserIdentity(username: "", host: self.session.settings.githubHost))
                 }

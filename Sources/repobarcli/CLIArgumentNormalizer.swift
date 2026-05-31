@@ -68,6 +68,20 @@ enum CLIArgumentNormalizer {
             }
         }
 
+        if normalized.count > 2, normalized[1] == "accounts" {
+            let subcommand = normalized[2].lowercased()
+            let mapped: String? = switch subcommand {
+            case "list", "ls": "accounts-list"
+            case "use", "switch": "accounts-use"
+            case "remove", "rm": "accounts-remove"
+            default: nil
+            }
+            if let mapped {
+                normalized[1] = mapped
+                normalized.remove(at: 2)
+            }
+        }
+
         if normalized.count > 2, normalized[1] == "archives" {
             let subcommand = normalized[2].lowercased()
             let mapped: String? = switch subcommand {

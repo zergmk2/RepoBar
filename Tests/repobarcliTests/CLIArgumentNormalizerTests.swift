@@ -51,6 +51,20 @@ struct CLIArgumentNormalizerTests {
     }
 
     @Test
+    func `normalizes account subcommands`() {
+        let listArgs = CLIArgumentNormalizer.normalize(["repobar", "accounts", "list"])
+        #expect(listArgs[1] == "accounts-list")
+
+        let useArgs = CLIArgumentNormalizer.normalize(["repobar", "accounts", "use", "alice@github.com"])
+        #expect(useArgs[1] == "accounts-use")
+        #expect(useArgs.dropFirst(2).first == "alice@github.com")
+
+        let removeArgs = CLIArgumentNormalizer.normalize(["repobar", "accounts", "remove", "github.com#alice"])
+        #expect(removeArgs[1] == "accounts-remove")
+        #expect(removeArgs.dropFirst(2).first == "github.com#alice")
+    }
+
+    @Test
     func `normalizes archive subcommands`() {
         let listArgs = CLIArgumentNormalizer.normalize(["repobar", "archives", "list"])
         #expect(listArgs[1] == "archives-list")
@@ -103,6 +117,16 @@ struct CLIArgumentNormalizerTests {
         let invocation = try program.resolve(argv: argv)
         #expect(invocation.path.last == RateLimitsCommand.commandName)
         #expect(try RepoBarCLI.makeCommand(from: invocation) is RateLimitsCommand)
+    }
+
+    @Test
+    @MainActor
+    func `normalized account args resolve`() throws {
+        let argv = CLIArgumentNormalizer.normalize(["repobar", "accounts", "list"])
+        let program = Program(descriptors: [RepoBarRoot.descriptor()])
+        let invocation = try program.resolve(argv: argv)
+        #expect(invocation.path.last == AccountsListCommand.commandName)
+        #expect(try RepoBarCLI.makeCommand(from: invocation) is AccountsListCommand)
     }
 
     @Test

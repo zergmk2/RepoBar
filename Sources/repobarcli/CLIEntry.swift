@@ -82,7 +82,10 @@ enum RepoBarCLI {
         LoginCommand.commandName: LoginCommand.self,
         LogoutCommand.commandName: LogoutCommand.self,
         ImportGHTokenCommand.commandName: ImportGHTokenCommand.self,
-        StatusCommand.commandName: StatusCommand.self
+        StatusCommand.commandName: StatusCommand.self,
+        AccountsListCommand.commandName: AccountsListCommand.self,
+        AccountsUseCommand.commandName: AccountsUseCommand.self,
+        AccountsRemoveCommand.commandName: AccountsRemoveCommand.self
     ]
 
     private static func handleError(_ error: Error) {

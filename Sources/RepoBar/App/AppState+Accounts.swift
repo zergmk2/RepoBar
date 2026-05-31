@@ -68,10 +68,8 @@ extension AppState {
         if let legacyPAT {
             try? tokenStore.savePAT(legacyPAT, accountID: account.id)
         }
-        // Clearing the legacy fixed keys ensures the user lands on the new schema
-        // and that future single-account read paths fall through to the account-scoped keys.
-        tokenStore.clear()
-        tokenStore.clearPAT()
+        // Keep legacy fixed keys until the primary refresh path is fully
+        // account-scoped; current app startup still uses them for login state.
 
         return account
     }
