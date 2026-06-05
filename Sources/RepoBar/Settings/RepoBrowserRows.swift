@@ -88,10 +88,10 @@ enum RepoBrowserRows {
 
         var rows = uniqueRepos.map { repo in
             let key = Self.normalized(repo.fullName)
-            let visibility: RepoVisibility = if hiddenSet.contains(key) {
-                .hidden
-            } else if pinnedSet.contains(key) {
+            let visibility: RepoVisibility = if pinnedSet.contains(key) {
                 .pinned
+            } else if hiddenSet.contains(key) {
+                .hidden
             } else {
                 .visible
             }
@@ -112,11 +112,23 @@ enum RepoBrowserRows {
             )
         }
 
-        let loadedKeys = Set(rows.map(\.id))
-        for name in pinnedRepositories where !loadedKeys.contains(Self.normalized(name)) {
+        // Track every key we have already emitted (loaded rows plus any manual
+        // rows we append below) so a name that appears in more than one list can
+        // never produce two rows with the same id. Duplicate Identifiable ids
+        // break SwiftUI Table rendering and selection. Pinned is processed first,
+        // so a name that is in both pinned and hidden wins as pinned, which matches
+        // the user's explicit intent when they pin a repository.
+        var seenKeys = Set(rows.map(\.id))
+        for name in pinnedRepositories {
+            let key = Self.normalized(name)
+            guard seenKeys.insert(key).inserted else { continue }
+
             rows.append(Self.manualRow(fullName: name, visibility: .pinned))
         }
-        for name in hiddenRepositories where !loadedKeys.contains(Self.normalized(name)) {
+        for name in hiddenRepositories {
+            let key = Self.normalized(name)
+            guard seenKeys.insert(key).inserted else { continue }
+
             rows.append(Self.manualRow(fullName: name, visibility: .hidden))
         }
 
