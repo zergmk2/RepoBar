@@ -70,9 +70,7 @@ final class IssueNavigatorBrowserStore: NSObject, WKNavigationDelegate, WKUIDele
         return webView
     }
 
-    func webView(_ webView: WKWebView, didFinish _: WKNavigation) {
-        let script = "if (window.scrollY < 80) window.scrollTo(0, 170);"
-        webView.evaluateJavaScript(script)
+    func webView(_: WKWebView, didFinish _: WKNavigation) {
         self.onNavigationStateChange?()
     }
 

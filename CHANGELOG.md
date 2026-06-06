@@ -2,6 +2,7 @@
 
 ## 0.7.1 - Unreleased
 
+- Keep the separate Issue Navigator window from auto-scrolling embedded GitHub issue previews while preserving the menu dropdown preview scroll offset.
 - Keep Issue Navigator reference clicks from being overwritten by clipboard seeding, and show unresolved GitHub metadata as the reference label instead of "preview unavailable."
 - Keep the Repositories settings table from rendering duplicate rows when the same repository is both pinned and hidden (thanks @devYRPauli). (#73)
 
