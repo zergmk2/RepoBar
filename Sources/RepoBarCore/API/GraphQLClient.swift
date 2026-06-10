@@ -46,9 +46,7 @@ actor GraphQLClient {
             query RepoSummary($owner: String!, $name: String!) {
               repository(owner: $owner, name: $name) {
                 name
-                releases(first: 20, orderBy: {field: CREATED_AT, direction: DESC}) {
-                  nodes { name tagName publishedAt createdAt url isDraft isPrerelease }
-                }
+                latestRelease { name tagName publishedAt createdAt url isDraft isPrerelease isLatest }
                 issues(states: OPEN) { totalCount }
                 pullRequests(states: OPEN) { totalCount }
               }
@@ -111,7 +109,7 @@ actor GraphQLClient {
             throw URLError(.cannotParseResponse)
         }
 
-        let release = Self.latestRelease(from: repo.releases.nodes ?? [])
+        let release = Self.latestRelease(from: repo.latestRelease)
 
         return RepoSummary(
             openIssues: repo.issues.totalCount,
@@ -120,15 +118,8 @@ actor GraphQLClient {
         )
     }
 
-    private nonisolated static func latestRelease(from nodes: [ReleaseNode]) -> Release? {
-        let candidates = nodes
-            .filter { !$0.isDraft && !$0.isPrerelease }
-            .sorted {
-                let lhsDate = $0.publishedAt ?? $0.createdAt ?? .distantPast
-                let rhsDate = $1.publishedAt ?? $1.createdAt ?? .distantPast
-                return lhsDate > rhsDate
-            }
-        guard let release = candidates.first else { return nil }
+    private nonisolated static func latestRelease(from release: ReleaseNode?) -> Release? {
+        guard let release, release.isLatest, release.isDraft == false, release.isPrerelease == false else { return nil }
 
         let date = release.publishedAt ?? release.createdAt ?? Date.distantPast
         return Release(name: release.name ?? release.tagName, tag: release.tagName, publishedAt: date, url: release.url)
@@ -307,13 +298,9 @@ private struct RepoSummaryData: Decodable {
 }
 
 private struct RepoSummaryNode: Decodable {
-    let releases: ReleaseConnection
+    let latestRelease: ReleaseNode?
     let issues: CountContainer
     let pullRequests: CountContainer
-}
-
-private struct ReleaseConnection: Decodable {
-    let nodes: [ReleaseNode]?
 }
 
 private struct ReleaseNode: Decodable {
@@ -324,6 +311,7 @@ private struct ReleaseNode: Decodable {
     let url: URL
     let isDraft: Bool
     let isPrerelease: Bool
+    let isLatest: Bool
 }
 
 private struct CountContainer: Decodable {

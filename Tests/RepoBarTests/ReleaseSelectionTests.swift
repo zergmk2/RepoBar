@@ -77,6 +77,38 @@ struct ReleaseSelectionTests {
     }
 
     @Test
+    func `skips more than twenty newer drafts and prereleases`() throws {
+        var releases = try (0 ..< 24).map { index in
+            try releaseResponse(
+                name: "v2.0.0-beta.\(index)",
+                tagName: "v2.0.0-beta.\(index)",
+                publishedAt: Date(timeIntervalSince1970: 1_701_000_000 + TimeInterval(index)),
+                createdAt: Date(timeIntervalSince1970: 1_700_900_000 + TimeInterval(index)),
+                prerelease: true,
+                url: "https://example.com/2.0.0-beta.\(index)"
+            )
+        }
+        try releases.append(releaseResponse(
+            name: "draft",
+            tagName: "draft",
+            publishedAt: nil,
+            createdAt: Date(timeIntervalSince1970: 1_702_000_000),
+            draft: true,
+            url: "https://example.com/draft"
+        ))
+        try releases.append(releaseResponse(
+            name: "v1.0.0",
+            tagName: "v1.0.0",
+            publishedAt: Date(timeIntervalSince1970: 1_700_100_000),
+            createdAt: Date(timeIntervalSince1970: 1_700_050_000),
+            url: "https://example.com/1.0.0"
+        ))
+
+        let picked = GitHubClient.latestRelease(from: releases)
+        #expect(picked?.tag == "v1.0.0")
+    }
+
+    @Test
     func `returns nil when no releases`() {
         let picked = GitHubClient.latestRelease(from: [])
         #expect(picked == nil)

@@ -126,7 +126,7 @@ actor GitHubRequestRunner {
             )
         }
 
-        if useETag, let etag = response.value(forHTTPHeaderField: "ETag") {
+        if useETag, Self.shouldCacheETagResponse(statusCode: status), let etag = response.value(forHTTPHeaderField: "ETag") {
             await self.etagCache.save(url: url, etag: etag, data: data, response: response)
             await self.diag.message("Cached ETag for \(url.lastPathComponent)")
         }
@@ -153,6 +153,10 @@ actor GitHubRequestRunner {
             request.addValue(value, forHTTPHeaderField: header)
         }
         return request
+    }
+
+    static func shouldCacheETagResponse(statusCode: Int) -> Bool {
+        statusCode == 200
     }
 
     private func data(for request: URLRequest, url: URL) async throws -> (Data, URLResponse) {

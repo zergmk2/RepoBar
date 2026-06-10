@@ -113,17 +113,16 @@ program
       const { data, rateLimitReset } = await fetchGraphQL<{
         repository: {
           name: string;
-          releases: {
-            nodes?: {
-              name?: string | null;
-              tagName: string;
-              publishedAt?: string | null;
-              createdAt?: string | null;
-              url: string;
-              isDraft: boolean;
-              isPrerelease: boolean;
-            }[];
-          };
+          latestRelease?: {
+            name?: string | null;
+            tagName: string;
+            publishedAt?: string | null;
+            createdAt?: string | null;
+            url: string;
+            isDraft: boolean;
+            isPrerelease: boolean;
+            isLatest: boolean;
+          } | null;
           issues: { totalCount: number };
           pullRequests: { totalCount: number };
         } | null;
@@ -141,13 +140,9 @@ program
 
       const repo = data.repository;
       if (!repo) throw new Error('Repository not found');
-      const release = repo.releases.nodes
-        ?.filter((node) => !node.isDraft && !node.isPrerelease)
-        .sort((lhs, rhs) => {
-          const lhsDate = lhs.publishedAt ?? lhs.createdAt ?? '0001-01-01T00:00:00Z';
-          const rhsDate = rhs.publishedAt ?? rhs.createdAt ?? '0001-01-01T00:00:00Z';
-          return rhsDate.localeCompare(lhsDate);
-        })[0];
+      const release = repo.latestRelease?.isLatest && !repo.latestRelease.isDraft && !repo.latestRelease.isPrerelease
+        ? repo.latestRelease
+        : undefined;
       const releaseLine = release
         ? `${release.name ?? release.tagName} (${new Date(release.publishedAt ?? release.createdAt ?? 0).toLocaleDateString()})`
         : 'none';

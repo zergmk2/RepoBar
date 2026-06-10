@@ -1,16 +1,15 @@
 query RepoSnapshot($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     name
-    releases(first: 20, orderBy: { field: CREATED_AT, direction: DESC }) {
-      nodes {
-        name
-        tagName
-        publishedAt
-        createdAt
-        url
-        isDraft
-        isPrerelease
-      }
+    latestRelease {
+      name
+      tagName
+      publishedAt
+      createdAt
+      url
+      isDraft
+      isPrerelease
+      isLatest
     }
     issues(states: OPEN) { totalCount }
     pullRequests(states: OPEN) { totalCount }

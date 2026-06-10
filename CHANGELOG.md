@@ -2,6 +2,8 @@
 
 ## 0.8.1 - Unreleased
 
+- Fix latest release metadata so stable releases still appear when many newer drafts or prereleases exist (thanks @vincentkoc). (#79)
+
 ## 0.8.0 - 2026-06-07
 
 - Add optional OpenAI-powered PR summaries to the Issue Navigator sidebar using Tachikoma `chat-latest`, with settings for model and API key storage.
