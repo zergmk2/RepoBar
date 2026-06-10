@@ -630,21 +630,21 @@ struct GitHubRestAPI {
         )
     }
 
-    /// Most recent release (including prereleases) ordered by creation date; skips drafts.
+    /// Most recent stable release ordered by GitHub's latest-release rules; skips drafts and prereleases.
     /// Returns `nil` if the repository has no releases.
     func latestReleaseAny(owner: String, name: String) async throws -> Release? {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
-            url: baseURL.appending(path: "/repos/\(owner)/\(name)/releases"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [URLQueryItem(name: "per_page", value: "20")]
-        let (data, response) = try await authorizedGet(url: components.url!, token: token, allowedStatuses: [200, 304, 404])
+        let url = baseURL.appending(path: "/repos/\(owner)/\(name)/releases/latest")
+        let (data, response) = try await authorizedGet(url: url, token: token, allowedStatuses: [200, 304, 404])
+        return try Self.latestRelease(from: data, response: response)
+    }
+
+    static func latestRelease(from data: Data, response: HTTPURLResponse) throws -> Release? {
         guard response.statusCode != 404 else { return nil }
 
-        let releases = try GitHubDecoding.decode([ReleaseResponse].self, from: data)
-        return GitHubReleasePicker.latestRelease(from: releases)
+        let release = try GitHubDecoding.decode(ReleaseResponse.self, from: data)
+        return GitHubReleasePicker.latestRelease(from: [release])
     }
 
     func recentList<T>(

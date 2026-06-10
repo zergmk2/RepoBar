@@ -14,7 +14,7 @@ Developer-only CLI to hit GitHub GraphQL quickly without touching the app.
 - Optional overrides: `GITHUB_GRAPHQL` for custom endpoints (e.g. GHE).
 
 ## Commands
-- `pnpm ghql repo <owner/repo>` – runs `GraphQL/RepoSnapshot.graphql`, prints issues/PRs/release.
+- `pnpm ghql repo <owner/repo>` – runs `GraphQL/RepoSnapshot.graphql`, prints issues/PRs/latest stable release.
 - `pnpm ghql contrib <login>` – flattens contribution calendar to day counts (heatmap helper).
 - `pnpm ghql run <file.graphql> --vars '{...}'` – run any query file with JSON vars.
 

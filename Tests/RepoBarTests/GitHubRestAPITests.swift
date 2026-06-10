@@ -41,6 +41,68 @@ struct GitHubRestAPITests {
     }
 
     @Test
+    func `latest release endpoint 404 means no stable release`() throws {
+        let url = try #require(URL(string: "https://api.github.com/repos/acme/docs/releases/latest"))
+        let response = try #require(HTTPURLResponse(
+            url: url,
+            statusCode: 404,
+            httpVersion: nil,
+            headerFields: ["ETag": "\"missing-stable\""]
+        ))
+
+        let release = try GitHubRestAPI.latestRelease(from: Data(#"{"message":"Not Found"}"#.utf8), response: response)
+
+        #expect(release == nil)
+    }
+
+    @Test
+    func `latest release endpoint decodes published date`() throws {
+        let url = try #require(URL(string: "https://api.github.com/repos/acme/docs/releases/latest"))
+        let response = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+        let data = Data("""
+        {
+          "name": "Stable",
+          "tag_name": "v1.0.0",
+          "published_at": "2026-01-04T12:30:00Z",
+          "created_at": "2026-01-01T00:00:00Z",
+          "draft": false,
+          "prerelease": false,
+          "html_url": "https://github.com/acme/docs/releases/tag/v1.0.0"
+        }
+        """.utf8)
+
+        let decoded = try GitHubRestAPI.latestRelease(from: data, response: response)
+        let release = try #require(decoded)
+        let expected = try iso8601Date("2026-01-04T12:30:00Z")
+
+        #expect(release.tag == "v1.0.0")
+        #expect(release.publishedAt == expected)
+    }
+
+    @Test
+    func `latest release endpoint falls back to created date`() throws {
+        let url = try #require(URL(string: "https://api.github.com/repos/acme/docs/releases/latest"))
+        let response = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+        let data = Data("""
+        {
+          "name": "Stable",
+          "tag_name": "v1.0.0",
+          "published_at": null,
+          "created_at": "2026-01-01T00:00:00Z",
+          "draft": false,
+          "prerelease": false,
+          "html_url": "https://github.com/acme/docs/releases/tag/v1.0.0"
+        }
+        """.utf8)
+
+        let decoded = try GitHubRestAPI.latestRelease(from: data, response: response)
+        let release = try #require(decoded)
+        let expected = try iso8601Date("2026-01-01T00:00:00Z")
+
+        #expect(release.publishedAt == expected)
+    }
+
+    @Test
     func `self hosted runner urls request full pages`() throws {
         let baseURL = try #require(URL(string: "https://api.github.com"))
         let orgURL = GitHubRestAPI.selfHostedRunnersURL(baseURL: baseURL, owner: "acme", repo: nil, page: 2)
@@ -149,4 +211,8 @@ struct GitHubRestAPITests {
         #expect(match.kind == .pullRequest)
         #expect(match.state == .merged)
     }
+}
+
+private func iso8601Date(_ raw: String) throws -> Date {
+    try #require(ISO8601DateFormatter().date(from: raw))
 }

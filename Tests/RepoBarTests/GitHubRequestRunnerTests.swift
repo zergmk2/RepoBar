@@ -16,6 +16,13 @@ struct GitHubRequestRunnerTests {
     }
 
     @Test
+    func `etag body cache stores only successful responses`() {
+        #expect(GitHubRequestRunner.shouldCacheETagResponse(statusCode: 200))
+        #expect(GitHubRequestRunner.shouldCacheETagResponse(statusCode: 304) == false)
+        #expect(GitHubRequestRunner.shouldCacheETagResponse(statusCode: 404) == false)
+    }
+
+    @Test
     func `cooldown message names endpoint`() async throws {
         let url = try #require(URL(string: "https://api.github.com/repos/owner/repo/stats/commit_activity"))
         let backoff = BackoffTracker()

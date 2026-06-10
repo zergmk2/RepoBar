@@ -96,7 +96,7 @@ const program = new Command()
 program
   .command('repo')
   .argument('<owner/repo>', 'Repository in owner/name form')
-  .description('Run RepoSnapshot query to fetch issues, PRs, and latest release')
+  .description('Run RepoSnapshot query to fetch issues, PRs, and latest stable release')
   .action(async (slug: string, opts: Record<string, unknown>, cmd: Command) => {
     const spinner = ora('Fetching repo snapshot').start();
     try {
@@ -113,7 +113,16 @@ program
       const { data, rateLimitReset } = await fetchGraphQL<{
         repository: {
           name: string;
-          releases: { nodes?: { name?: string | null; tagName: string; publishedAt: string; url: string }[] };
+          latestRelease?: {
+            name?: string | null;
+            tagName: string;
+            publishedAt?: string | null;
+            createdAt?: string | null;
+            url: string;
+            isDraft: boolean;
+            isPrerelease: boolean;
+            isLatest: boolean;
+          } | null;
           issues: { totalCount: number };
           pullRequests: { totalCount: number };
         } | null;
@@ -131,9 +140,11 @@ program
 
       const repo = data.repository;
       if (!repo) throw new Error('Repository not found');
-      const release = repo.releases.nodes?.[0];
+      const release = repo.latestRelease?.isLatest && !repo.latestRelease.isDraft && !repo.latestRelease.isPrerelease
+        ? repo.latestRelease
+        : undefined;
       const releaseLine = release
-        ? `${release.name ?? release.tagName} (${new Date(release.publishedAt).toLocaleDateString()})`
+        ? `${release.name ?? release.tagName} (${new Date(release.publishedAt ?? release.createdAt ?? 0).toLocaleDateString()})`
         : 'none';
 
       console.log(
@@ -141,7 +152,7 @@ program
           chalk.bold(`${owner}/${name}`),
           `Issues: ${repo.issues.totalCount}`,
           `PRs: ${repo.pullRequests.totalCount}`,
-          `Latest release: ${releaseLine}`,
+          `Latest stable release: ${releaseLine}`,
         ].join('\n')
       );
       const rl = formatRateLimit(rateLimitReset);

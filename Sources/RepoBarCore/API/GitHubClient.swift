@@ -206,7 +206,7 @@ public actor GitHubClient {
         return Array(commits.prefix(max(limit, 0)))
     }
 
-    /// Latest release (including prereleases). Returns `nil` if the repo has no releases.
+    /// Latest release, excluding drafts and prereleases. Returns `nil` if the repo has no releases.
     public func latestRelease(owner: String, name: String) async throws -> Release? {
         do {
             return try await self.restAPI.latestReleaseAny(owner: owner, name: name)

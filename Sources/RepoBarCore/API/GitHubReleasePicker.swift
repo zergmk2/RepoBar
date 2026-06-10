@@ -1,10 +1,10 @@
 import Foundation
 
 enum GitHubReleasePicker {
-    /// Pick the newest non-draft release, preferring publishedAt over createdAt.
+    /// Pick the newest stable release, preferring publishedAt over createdAt.
     static func latestRelease(from responses: [ReleaseResponse]) -> Release? {
         let candidates = responses
-            .filter { $0.draft != true }
+            .filter { $0.draft != true && $0.prerelease != true }
             .sorted {
                 let lhsDate = $0.publishedAt ?? $0.createdAt ?? .distantPast
                 let rhsDate = $1.publishedAt ?? $1.createdAt ?? .distantPast
