@@ -27,10 +27,20 @@ struct AddRepoView: View {
                     self.onSelect(repo)
                     self.isPresented = false
                 } label: {
-                    VStack(alignment: .leading) {
-                        Text(repo.fullName).bold()
-                        if let release = repo.latestRelease {
-                            Text("Latest: \(release.name)").font(.caption)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(repo.fullName).bold()
+                            if let lang = repo.language, !lang.isEmpty {
+                                Badge(text: lang)
+                            }
+                            if repo.isFork { Badge(text: "Fork") }
+                            if repo.isArchived { Badge(text: "Archived") }
+                        }
+                        if let description = repo.description, !description.isEmpty {
+                            Text(description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         } else {
                             Text("Issues: \(repo.stats.openIssues) • Owner: \(repo.owner)")
                                 .font(.caption)
@@ -71,5 +81,19 @@ struct AddRepoView: View {
         } catch {
             // Ignored; UI stays empty
         }
+    }
+}
+
+private struct Badge: View {
+    let text: String
+
+    var body: some View {
+        Text(self.text)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.primary.opacity(0.06), in: Capsule())
+            .overlay(Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1))
     }
 }

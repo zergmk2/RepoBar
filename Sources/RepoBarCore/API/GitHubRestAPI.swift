@@ -12,6 +12,9 @@ struct GitHubRestAPI {
     let diag: DiagnosticsLogger
     let responseDiskCache: HTTPResponseDiskCache?
 
+    /// Accept header that includes the mercy-preview for topics support.
+    static let repoAcceptHeader = "application/vnd.github.mercy-preview+json"
+
     init(
         apiHost: @escaping @Sendable () async -> URL,
         tokenProvider: @escaping @Sendable () async throws -> String,
@@ -40,7 +43,7 @@ struct GitHubRestAPI {
         let baseURL = await apiHost()
         var components = URLComponents(url: baseURL.appending(path: "/user/repos"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "per_page", value: "\(limit)")] + Self.userReposQueryItems()
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        let (data, _) = try await authorizedGet(url: components.url!, token: token, headers: ["Accept": Self.repoAcceptHeader])
         return try GitHubDecoding.decode([RepoItem].self, from: data)
     }
 
@@ -50,6 +53,7 @@ struct GitHubRestAPI {
             path: "/user/repos",
             queryItems: Self.userReposQueryItems(),
             limit: limit,
+            headers: ["Accept": Self.repoAcceptHeader],
             decode: { try GitHubDecoding.decode([RepoItem].self, from: $0) }
         )
     }
@@ -160,7 +164,7 @@ struct GitHubRestAPI {
             URLQueryItem(name: "q", value: Self.repoSearchQuery(from: trimmed)),
             URLQueryItem(name: "per_page", value: "8")
         ]
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        let (data, _) = try await authorizedGet(url: components.url!, token: token, headers: ["Accept": Self.repoAcceptHeader])
         let decoded = try GitHubDecoding.decode(SearchResponse.self, from: data)
         return decoded.items
     }
@@ -673,6 +677,7 @@ struct GitHubRestAPI {
         path: String,
         queryItems: [URLQueryItem],
         limit: Int?,
+        headers: [String: String] = [:],
         decode: @escaping (Data) throws -> [T]
     ) async throws -> [T] {
         let pageSize = 100 // GitHub maximum.
@@ -688,7 +693,7 @@ struct GitHubRestAPI {
             items.append(URLQueryItem(name: "per_page", value: "\(pageSize)"))
             items.append(URLQueryItem(name: "page", value: "\(page)"))
             components.queryItems = items
-            let (data, _) = try await authorizedGet(url: components.url!, token: token)
+            let (data, _) = try await authorizedGet(url: components.url!, token: token, headers: headers)
             let itemsPage = try decode(data)
             collected.append(contentsOf: itemsPage)
 
