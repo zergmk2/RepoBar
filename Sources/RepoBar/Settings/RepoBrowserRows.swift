@@ -6,6 +6,9 @@ struct RepoBrowserRow: Identifiable, Hashable {
     let fullName: String
     let owner: String
     let name: String
+    let description: String?
+    let language: String?
+    let topics: [String]
     let visibility: RepoVisibility
     let isFork: Bool
     let isArchived: Bool
@@ -60,15 +63,19 @@ struct RepoBrowserRow: Identifiable, Hashable {
             .map { String($0).lowercased() }
         guard !terms.isEmpty else { return true }
 
-        let haystack = [
-            self.fullName,
-            self.owner,
-            self.name,
-            self.visibility.label,
-            self.isFork ? "fork" : "",
-            self.isArchived ? "archived" : "",
-            self.isManual ? "manual" : ""
-        ]
+        let haystack = (
+            [
+                self.fullName,
+                self.owner,
+                self.name,
+                self.description ?? "",
+                self.language ?? "",
+                self.visibility.label,
+                self.isFork ? "fork" : "",
+                self.isArchived ? "archived" : "",
+                self.isManual ? "manual" : ""
+            ] + self.topics
+        )
         .joined(separator: " ")
         .lowercased()
         return terms.allSatisfy { haystack.contains($0) }
@@ -100,6 +107,9 @@ enum RepoBrowserRows {
                 fullName: repo.fullName,
                 owner: repo.owner,
                 name: repo.name,
+                description: repo.description,
+                language: repo.language,
+                topics: repo.topics,
                 visibility: visibility,
                 isFork: repo.isFork,
                 isArchived: repo.isArchived,
@@ -169,6 +179,9 @@ enum RepoBrowserRows {
             fullName: trimmed,
             owner: owner,
             name: name,
+            description: nil,
+            language: nil,
+            topics: [],
             visibility: visibility,
             isFork: false,
             isArchived: false,
