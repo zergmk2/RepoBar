@@ -3,6 +3,21 @@
     <channel>
         <title>RepoBar</title>
         <item>
+            <title>0.8.2</title>
+            <pubDate>Fri, 12 Jun 2026 07:14:30 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
+            <sparkle:version>23</sparkle:version>
+            <sparkle:shortVersionString>0.8.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>RepoBar 0.8.2</h2>
+<ul>
+<li>Streamline the GitHub API submenu by showing sample age once, while moving shared-budget guidance into a dedicated API settings tab.</li>
+</ul>
+<p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.8.2/RepoBar-0.8.2.zip" length="33389017" type="application/octet-stream" sparkle:edSignature="8oetJWUfixEzPVuBMFJhd9twGYUs4shghET/sg1zkpX2c5XOGfOqkxGF05gwdOGDWNbHqFTSde8UHa1sWgeFAg=="/>
+        </item>
+        <item>
             <title>0.8.1</title>
             <pubDate>Wed, 10 Jun 2026 09:06:29 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
@@ -36,29 +51,6 @@
 <p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.8.0/RepoBar-0.8.0.zip" length="33341339" type="application/octet-stream" sparkle:edSignature="jYWQYc8TWidogh9KJffQpn82UkOqqtS3UGuKQuiFUKOmM5xZMI1+pSNpxoI8399Xmsmu1pKP59/MTLqNFpzkBA=="/>
-        </item>
-        <item>
-            <title>0.7.0</title>
-            <pubDate>Sun, 31 May 2026 19:17:14 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
-            <sparkle:version>20</sparkle:version>
-            <sparkle:shortVersionString>0.7.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>RepoBar 0.7.0</h2>
-<ul>
-<li>Add copyable update diagnostics in About so Sparkle install-location failures include bundle path, resolved path, signing, Homebrew, translocation, and quarantine signals. (#70)</li>
-<li>Keep copied repository-scoped PR and issue references like <code>owner/repo PR #123</code> resolving to the named repository instead of a newer same-number reference elsewhere.</li>
-<li>Recognize numbered repository triage lists whose issue/PR count summary is on the next indented line.</li>
-<li>Add a design plan for staged multi-account authentication, storage, UI, cache, and CLI support (thanks @felipeorlando).</li>
-<li>Store OAuth, client-credential, and PAT material under stable per-account Keychain keys derived from <code>host#username</code>, with a Keychain/file index so multiple accounts can be enumerated without colliding on legacy fixed entries.</li>
-<li>Introduce a multi-account data model (<code>Account</code>, <code>AccountSelection</code>, account-scoped pinned/hidden repository lists) in <code>UserSettings</code> with backward-compatible Codable so existing single-account installs continue to load.</li>
-<li>Add an <code>AccountManager</code> that owns per-account <code>GitHubClient</code> instances and an account-scoped OAuth refresher, and bootstrap it from <code>AppState</code> with a one-shot migration that records the existing single-account credentials under the new account identity.</li>
-<li>Scope persistent GraphQL and HTTP caches per account so each account writes to its own SQLite database under <code>~/Library/Application Support/RepoBar/Cache/</code>.</li>
-<li>Surface configured accounts in the Settings sidebar with use/visible/remove actions, and expose <code>repobar accounts list/use/remove</code> plus <code>--account</code>/<code>--all</code>/<code>--label</code> flags on <code>login</code>, <code>logout</code>, <code>status</code>, and <code>import-gh-token</code> in the CLI.</li>
-</ul>
-<p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.7.0/RepoBar-0.7.0.zip" length="25410629" type="application/octet-stream" sparkle:edSignature="OfbqJWuj94OncHycI8i+uB54hh4IeHayT97vApLzNI/Thf25WecszzM9ucW8u9RtikHRhEhaarFEOilLcBXSCQ=="/>
         </item>
     </channel>
 </rss>
