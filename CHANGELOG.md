@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.2 - Unreleased
+## 0.8.2 - 2026-06-12
 
 - Streamline the GitHub API submenu by showing sample age once, while moving shared-budget guidance into a dedicated API settings tab.
 
