@@ -2,6 +2,9 @@
 
 ## 0.8.4 - Unreleased
 
+- Update Kingfisher to 8.10.0 for safer asynchronous image cancellation and macOS image decoding.
+- Update esbuild to 0.28.1 to address upstream development-tool security advisories.
+
 ## 0.8.3 - 2026-06-13
 
 - Send optional AI summaries through the OpenAI Responses API directly and limit model choices to documented public OpenAI identifiers.
