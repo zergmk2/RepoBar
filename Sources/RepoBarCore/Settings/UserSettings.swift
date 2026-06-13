@@ -305,9 +305,8 @@ public struct GitHubReferenceMonitorSettings: Equatable, Codable, Sendable {
 }
 
 public struct AISummarySettings: Equatable, Codable, Sendable {
-    public static let defaultModel = "chat-latest"
+    public static let defaultModel = "gpt-5.5"
     public static let modelOptions: [AISummaryModelOption] = [
-        AISummaryModelOption(id: "chat-latest", label: "Chat latest"),
         AISummaryModelOption(id: "gpt-5.5", label: "GPT-5.5"),
         AISummaryModelOption(id: "gpt-5.4", label: "GPT-5.4"),
         AISummaryModelOption(id: "gpt-5.4-mini", label: "GPT-5.4 mini")

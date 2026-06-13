@@ -13,7 +13,7 @@ struct SettingsCommandTests {
         settings.gitHubPullRequestNotifications.comments = true
         settings.gitHubPullRequestNotifications.clickAction = .openIssueNavigator
         settings.aiSummaries.enabled = true
-        settings.aiSummaries.model = "chat-latest"
+        settings.aiSummaries.model = AISummarySettings.defaultModel
 
         let lines = settingsSummaryLines(settings: settings)
 
@@ -22,7 +22,7 @@ struct SettingsCommandTests {
         #expect(lines.contains("PR notification events: new pull requests, updates, review requests, comments"))
         #expect(lines.contains("PR notification click: Issue Navigator"))
         #expect(lines.contains("AI summaries: on"))
-        #expect(lines.contains("AI summary model: chat-latest"))
+        #expect(lines.contains("AI summary model: \(AISummarySettings.defaultModel)"))
     }
 
     @Test
@@ -61,7 +61,7 @@ struct SettingsCommandTests {
     func `AI summary model setting normalizes unsupported values`() throws {
         var settings = UserSettings()
 
-        #expect(try applySetting(.aiSummaryModel, value: "custom-model", settings: &settings) == "chat-latest")
+        #expect(try applySetting(.aiSummaryModel, value: "custom-model", settings: &settings) == AISummarySettings.defaultModel)
         #expect(settings.aiSummaries.model == AISummarySettings.defaultModel)
     }
 

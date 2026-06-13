@@ -2,6 +2,7 @@
 
 ## 0.8.3 - 2026-06-13
 
+- Send optional AI summaries through the OpenAI Responses API directly and limit model choices to documented public OpenAI identifiers.
 - Keep GitHub API usage in a compact, expandable Accounts settings section instead of a separate settings tab.
 - Search accessible repositories by description, language, and topics, and open repository rows on the configured GitHub host with a double-click (thanks @udiedrichsen). (#80)
 - Add opt-in release notifications for pinned repositories, including an optional pre-release toggle, first-refresh backlog protection, and rate-conscious polling at most every 15 minutes (thanks @LeoLin990405). (#82)
@@ -17,7 +18,7 @@
 
 ## 0.8.0 - 2026-06-07
 
-- Add optional OpenAI-powered PR summaries to the Issue Navigator sidebar using Tachikoma `chat-latest`, with settings for model and API key storage.
+- Add optional OpenAI-powered PR summaries to the Issue Navigator sidebar, with settings for model and API key storage.
 - Give AI PR summaries more Issue Navigator sidebar room and tune generated summary length to the visible row budget.
 - Summarize all resolved Issue Navigator items with AI, add compact settings controls for model selection, API key testing, saving, and clearing.
 - Keep the separate Issue Navigator window from auto-scrolling embedded GitHub issue previews while preserving the menu dropdown preview scroll offset.

@@ -5,7 +5,7 @@ import Testing
 struct PullRequestAISummarizerTests {
     @Test
     func `AI summary model options include supported OpenAI ids`() {
-        #expect(AISummarySettings.modelOptions.map(\.id) == ["chat-latest", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini"])
+        #expect(AISummarySettings.modelOptions.map(\.id) == ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"])
     }
 
     @Test
@@ -16,13 +16,64 @@ struct PullRequestAISummarizerTests {
     }
 
     @Test
+    func `AI summary request uses the selected OpenAI model`() async throws {
+        let summarizer = PullRequestAISummarizer { request in
+            #expect(request.url?.absoluteString == "https://api.openai.com/v1/responses")
+            #expect(request.httpMethod == "POST")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-key")
+
+            let body = try #require(request.httpBody)
+            let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(json["model"] as? String == "gpt-5.4-mini")
+            #expect(json["max_output_tokens"] as? Int == 1024)
+            #expect((json["reasoning"] as? [String: Any])?["effort"] as? String == "low")
+
+            let data = Data(#"{"output":[{"content":[{"type":"output_text","text":"RepoBar AI summaries are ready."}]}]}"#.utf8)
+            let response = try #require(HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            ))
+            return (data, response)
+        }
+        var settings = AISummarySettings()
+        settings.model = "gpt-5.4-mini"
+
+        let summary = try await summarizer.test(settings: settings, apiKeyOverride: "test-key")
+
+        #expect(summary == "RepoBar AI summaries are ready.")
+    }
+
+    @Test
+    func `AI summary request surfaces OpenAI errors`() async throws {
+        let summarizer = PullRequestAISummarizer { request in
+            let data = Data(#"{"error":{"message":"Invalid API key."}}"#.utf8)
+            let response = try #require(HTTPURLResponse(
+                url: request.url!,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil
+            ))
+            return (data, response)
+        }
+
+        do {
+            _ = try await summarizer.test(settings: AISummarySettings(), apiKeyOverride: "test-key")
+            Issue.record("Expected the OpenAI request to fail")
+        } catch {
+            #expect(error.localizedDescription == "OpenAI request failed (401): Invalid API key.")
+        }
+    }
+
+    @Test
     func `legacy enabled AI summary settings decode without scope`() throws {
         let data = try JSONEncoder().encode(LegacyAISummarySettings(enabled: true, model: "chat-latest"))
 
         let settings = try JSONDecoder().decode(AISummarySettings.self, from: data)
 
         #expect(settings.enabled)
-        #expect(settings.model == "chat-latest")
+        #expect(settings.model == AISummarySettings.defaultModel)
     }
 
     @Test
@@ -32,7 +83,7 @@ struct PullRequestAISummarizerTests {
         let settings = try JSONDecoder().decode(AISummarySettings.self, from: data)
 
         #expect(settings.enabled == false)
-        #expect(settings.model == "chat-latest")
+        #expect(settings.model == AISummarySettings.defaultModel)
     }
 
     @Test
