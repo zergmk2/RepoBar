@@ -10,6 +10,9 @@ struct RepositoryFactoryTests {
           "id": 42,
           "name": "RepoBar",
           "full_name": "steipete/RepoBar",
+          "description": "A macOS GitHub menu bar app",
+          "language": "Swift",
+          "topics": ["macos", "github"],
           "fork": true,
           "archived": true,
           "open_issues_count": 7,
@@ -44,6 +47,9 @@ struct RepositoryFactoryTests {
         #expect(repo.id == "42")
         #expect(repo.name == "RepoBar")
         #expect(repo.owner == "steipete")
+        #expect(repo.description == "A macOS GitHub menu bar app")
+        #expect(repo.language == "Swift")
+        #expect(repo.topics == ["macos", "github"])
         #expect(repo.isFork == true)
         #expect(repo.isArchived == true)
         #expect(repo.viewerCanRead == true)

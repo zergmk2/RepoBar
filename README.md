@@ -47,6 +47,8 @@ Each repository has a rich submenu:
 
 Preferences > Repositories is a real repository browser. It searches repositories RepoBar can access and lets you choose what appears in the menu:
 
+- Search matches repository names, descriptions, languages, and topics.
+- Double-click any non-control area of a repository row to open it on the configured GitHub host.
 - `Visible` keeps the repo available through normal sorting and filtering.
 - `Pinned` keeps the repo near the top.
 - `Hidden` removes it from the menu.

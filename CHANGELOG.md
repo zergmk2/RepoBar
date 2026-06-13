@@ -2,6 +2,8 @@
 
 ## 0.8.3 - Unreleased
 
+- Search accessible repositories by description, language, and topics, and open repository rows on the configured GitHub host with a double-click (thanks @udiedrichsen). (#80)
+
 ## 0.8.2 - 2026-06-12
 
 - Streamline the GitHub API submenu by showing sample age once, while moving shared-budget guidance into a dedicated API settings tab.

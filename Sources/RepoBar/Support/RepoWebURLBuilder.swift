@@ -4,8 +4,8 @@ struct RepoWebURLBuilder {
     let host: URL
 
     func repoURL(fullName: String) -> URL? {
-        let parts = fullName.split(separator: "/", maxSplits: 1)
-        guard parts.count == 2 else { return nil }
+        let parts = fullName.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty }) else { return nil }
 
         return self.repoPathURL(components: [String(parts[0]), String(parts[1])])
     }

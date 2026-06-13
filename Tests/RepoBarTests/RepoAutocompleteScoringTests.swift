@@ -53,35 +53,35 @@ struct RepoAutocompleteScoringTests {
     }
 
     @Test
-    func `topic exact match boosts score`() {
+    func `topic exact match boosts score`() throws {
         let repo = Self.repo(owner: "swiftlang", name: "indexstore-db", topics: ["swift"])
 
         let score = RepoAutocompleteScoring.score(repo: repo, query: "swift")
         // Should match via topic "swift" even though neither owner nor name contain "swift"
         #expect(score != nil)
-        #expect(score! >= 400, "Topic exact match should contribute at least 400")
+        #expect(try #require(score) >= 400, "Topic exact match should contribute at least 400")
     }
 
     @Test
-    func `topic prefix match works`() {
+    func `topic prefix match works`() throws {
         let repo = Self.repo(owner: "apple", name: "some-tool", topics: ["machine-learning"])
 
         let score = RepoAutocompleteScoring.score(repo: repo, query: "machine")
         #expect(score != nil)
-        #expect(score! >= 300, "Topic prefix match should contribute at least 300")
+        #expect(try #require(score) >= 300, "Topic prefix match should contribute at least 300")
     }
 
     @Test
-    func `language exact match works`() {
+    func `language exact match works`() throws {
         let repo = Self.repo(owner: "openclaw", name: "clawbook", language: "Ruby")
 
         let score = RepoAutocompleteScoring.score(repo: repo, query: "ruby")
         #expect(score != nil)
-        #expect(score! >= 150, "Language exact match should contribute at least 150")
+        #expect(try #require(score) >= 150, "Language exact match should contribute at least 150")
     }
 
     @Test
-    func `description substring match works`() {
+    func `description substring match works`() throws {
         let repo = Self.repo(
             owner: "someorg",
             name: "cool-tool",
@@ -90,7 +90,7 @@ struct RepoAutocompleteScoringTests {
 
         let score = RepoAutocompleteScoring.score(repo: repo, query: "declarative")
         #expect(score != nil)
-        #expect(score! >= 60, "Description substring should contribute at least 60")
+        #expect(try #require(score) >= 60, "Description substring should contribute at least 60")
     }
 
     @Test

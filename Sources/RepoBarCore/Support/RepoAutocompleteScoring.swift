@@ -142,15 +142,20 @@ public enum RepoAutocompleteScoring {
         var best = 0
         for topic in topics {
             let lower = topic.lowercased()
-            if lower == query { best = max(best, 400) }
-            else if lower.hasPrefix(query) { best = max(best, 300) }
-            else if lower.contains(query) { best = max(best, 200) }
+            if lower == query {
+                best = max(best, 400)
+            } else if lower.hasPrefix(query) {
+                best = max(best, 300)
+            } else if lower.contains(query) {
+                best = max(best, 200)
+            }
         }
         return best
     }
 
     private static func languageScore(query: String, language: String?) -> Int {
         guard let language, !language.isEmpty else { return 0 }
+
         let lower = language.lowercased()
         if lower == query { return 150 }
         if lower.hasPrefix(query) { return 100 }
@@ -160,6 +165,7 @@ public enum RepoAutocompleteScoring {
 
     private static func descriptionScore(query: String, description: String?) -> Int {
         guard let description, !description.isEmpty else { return 0 }
+
         let lower = description.lowercased()
         if lower.contains(query) { return 60 }
         if query.count <= 3, Self.isSubsequence(query, of: lower) { return 30 }

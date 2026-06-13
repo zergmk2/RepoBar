@@ -130,11 +130,37 @@ struct RepoBrowserRowsTests {
         #expect(row?.matches("amantus sweetis") == true)
         #expect(row?.matches("steipete") == false)
     }
+
+    @Test
+    func `matches repository metadata`() throws {
+        let row = try #require(RepoBrowserRows.make(
+            repositories: [
+                Self.makeRepo(
+                    "example/utility",
+                    description: "Desktop notifications for release automation",
+                    language: "Swift",
+                    topics: ["macos", "developer-tools"]
+                )
+            ],
+            pinnedRepositories: [],
+            hiddenRepositories: [],
+            now: Date(timeIntervalSinceReferenceDate: 1000)
+        ).first)
+
+        #expect(row.matches("notifications") == true)
+        #expect(row.matches("swift") == true)
+        #expect(row.matches("developer-tools") == true)
+        #expect(row.matches("swift macos") == true)
+        #expect(row.matches("kotlin") == false)
+    }
 }
 
 private extension RepoBrowserRowsTests {
     static func makeRepo(
         _ fullName: String,
+        description: String? = nil,
+        language: String? = nil,
+        topics: [String] = [],
         issues: Int = 0,
         pulls: Int = 0,
         stars: Int = 0
@@ -144,6 +170,9 @@ private extension RepoBrowserRowsTests {
             id: fullName,
             name: parts[1],
             owner: parts[0],
+            description: description,
+            language: language,
+            topics: topics,
             sortOrder: nil,
             error: nil,
             rateLimitedUntil: nil,

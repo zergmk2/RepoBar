@@ -87,7 +87,7 @@ _Last updated: 2025-11-24_
 
 ## Repo Selection
 - Default view: last 5 active repos (recent pushes/issues/PRs) for the authenticated user (across orgs user can access).
-- Settings > Repositories: searchable browser of repositories the authenticated account can access. The browser shows visibility state per repo and lets the user switch each repo between Visible, Pinned, and Hidden.
+- Settings > Repositories: searchable browser of repositories the authenticated account can access. Search includes repository names, descriptions, languages, and topics. Double-clicking a row opens the repository on the configured GitHub host, while the browser shows visibility state per repo and lets the user switch each repo between Visible, Pinned, and Hidden.
 - Pinning: stored per account. Unpin via card overflow menu or set the repo back to Visible in Settings.
 - Display limit configurable in Settings.
 

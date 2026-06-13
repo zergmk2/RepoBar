@@ -1,5 +1,7 @@
 import Foundation
 
+private let repositoryTopicsAcceptHeader = "application/vnd.github.mercy-preview+json"
+
 struct ActivitySnapshot {
     let events: [ActivityEvent]
     let latest: ActivityEvent?
@@ -11,9 +13,6 @@ struct GitHubRestAPI {
     let requestRunner: GitHubRequestRunner
     let diag: DiagnosticsLogger
     let responseDiskCache: HTTPResponseDiskCache?
-
-    /// Accept header that includes the mercy-preview for topics support.
-    static let repoAcceptHeader = "application/vnd.github.mercy-preview+json"
 
     init(
         apiHost: @escaping @Sendable () async -> URL,
@@ -43,7 +42,7 @@ struct GitHubRestAPI {
         let baseURL = await apiHost()
         var components = URLComponents(url: baseURL.appending(path: "/user/repos"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "per_page", value: "\(limit)")] + Self.userReposQueryItems()
-        let (data, _) = try await authorizedGet(url: components.url!, token: token, headers: ["Accept": Self.repoAcceptHeader])
+        let (data, _) = try await authorizedGet(url: components.url!, token: token, headers: ["Accept": repositoryTopicsAcceptHeader])
         return try GitHubDecoding.decode([RepoItem].self, from: data)
     }
 
@@ -53,7 +52,7 @@ struct GitHubRestAPI {
             path: "/user/repos",
             queryItems: Self.userReposQueryItems(),
             limit: limit,
-            headers: ["Accept": Self.repoAcceptHeader],
+            headers: ["Accept": repositoryTopicsAcceptHeader],
             decode: { try GitHubDecoding.decode([RepoItem].self, from: $0) }
         )
     }
@@ -164,7 +163,7 @@ struct GitHubRestAPI {
             URLQueryItem(name: "q", value: Self.repoSearchQuery(from: trimmed)),
             URLQueryItem(name: "per_page", value: "8")
         ]
-        let (data, _) = try await authorizedGet(url: components.url!, token: token, headers: ["Accept": Self.repoAcceptHeader])
+        let (data, _) = try await authorizedGet(url: components.url!, token: token, headers: ["Accept": repositoryTopicsAcceptHeader])
         let decoded = try GitHubDecoding.decode(SearchResponse.self, from: data)
         return decoded.items
     }
