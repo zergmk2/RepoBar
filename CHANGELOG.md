@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.8.4 - Unreleased
+
 ## 0.8.3 - 2026-06-13
 
 - Send optional AI summaries through the OpenAI Responses API directly and limit model choices to documented public OpenAI identifiers.
