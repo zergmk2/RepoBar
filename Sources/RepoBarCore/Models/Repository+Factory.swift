@@ -50,7 +50,6 @@ extension Repository {
     static func placeholder(
         owner: String,
         name: String,
-        description: String? = nil,
         error: String?,
         rateLimitedUntil: Date?
     ) -> Repository {
@@ -58,7 +57,6 @@ extension Repository {
             id: "\(owner)/\(name)",
             name: name,
             owner: owner,
-            description: description,
             sortOrder: nil,
             error: error,
             rateLimitedUntil: rateLimitedUntil,
