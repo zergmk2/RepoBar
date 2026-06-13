@@ -3,6 +3,25 @@
     <channel>
         <title>RepoBar</title>
         <item>
+            <title>0.8.3</title>
+            <pubDate>Sat, 13 Jun 2026 12:34:16 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
+            <sparkle:version>24</sparkle:version>
+            <sparkle:shortVersionString>0.8.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>RepoBar 0.8.3</h2>
+<ul>
+<li>Send optional AI summaries through the OpenAI Responses API directly and limit model choices to documented public OpenAI identifiers.</li>
+<li>Keep GitHub API usage in a compact, expandable Accounts settings section instead of a separate settings tab.</li>
+<li>Search accessible repositories by description, language, and topics, and open repository rows on the configured GitHub host with a double-click (thanks @udiedrichsen). (#80)</li>
+<li>Add opt-in release notifications for pinned repositories, including an optional pre-release toggle, first-refresh backlog protection, and rate-conscious polling at most every 15 minutes (thanks @LeoLin990405). (#82)</li>
+<li>Round compact stat badges (issue, PR, star, and release download counts) to the nearest thousand and million instead of truncating, so a count like 19,999 shows as &quot;20K&quot; rather than &quot;19K&quot; and matches GitHub&#x27;s own compact numbers (thanks @LeoLin990405). (#81)</li>
+</ul>
+<p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.8.3/RepoBar-0.8.3.zip" length="25813858" type="application/octet-stream" sparkle:edSignature="ebPqSCAyE+GjbhAMR8xMs14ULcYdx8eWRDkhcueBfIvP4uyDx8p8fJfspZGQh4pm4MmbsvyF8ixkfiyoSLWuBw=="/>
+        </item>
+        <item>
             <title>0.8.2</title>
             <pubDate>Fri, 12 Jun 2026 07:14:30 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
@@ -31,26 +50,6 @@
 <p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.8.1/RepoBar-0.8.1.zip" length="33327723" type="application/octet-stream" sparkle:edSignature="KN15tsqPgcgcz5k81ScvanAz5hDOqeJxCwu4JE8+J9CX1LiacQDpkhWudVl4eIdV8HSe74iQAHA72xiPFreKBA=="/>
-        </item>
-        <item>
-            <title>0.8.0</title>
-            <pubDate>Sun, 07 Jun 2026 00:23:34 -0700</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/RepoBar/main/appcast.xml</link>
-            <sparkle:version>21</sparkle:version>
-            <sparkle:shortVersionString>0.8.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>RepoBar 0.8.0</h2>
-<ul>
-<li>Add optional OpenAI-powered PR summaries to the Issue Navigator sidebar using Tachikoma <code>chat-latest</code>, with settings for model and API key storage.</li>
-<li>Give AI PR summaries more Issue Navigator sidebar room and tune generated summary length to the visible row budget.</li>
-<li>Summarize all resolved Issue Navigator items with AI, add compact settings controls for model selection, API key testing, saving, and clearing.</li>
-<li>Keep the separate Issue Navigator window from auto-scrolling embedded GitHub issue previews while preserving the menu dropdown preview scroll offset.</li>
-<li>Keep Issue Navigator reference clicks from being overwritten by clipboard seeding, and show unresolved GitHub metadata as the reference label instead of &quot;preview unavailable.&quot;</li>
-<li>Keep the Repositories settings table from rendering duplicate rows when the same repository is both pinned and hidden (thanks @devYRPauli). (#73)</li>
-</ul>
-<p><a href="https://github.com/steipete/RepoBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/RepoBar/releases/download/v0.8.0/RepoBar-0.8.0.zip" length="33341339" type="application/octet-stream" sparkle:edSignature="jYWQYc8TWidogh9KJffQpn82UkOqqtS3UGuKQuiFUKOmM5xZMI1+pSNpxoI8399Xmsmu1pKP59/MTLqNFpzkBA=="/>
         </item>
     </channel>
 </rss>
