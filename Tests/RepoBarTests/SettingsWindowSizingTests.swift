@@ -98,19 +98,16 @@ struct SettingsWindowSizingTests {
     }
 
     @Test
-    func `minimumContentSize subtracts chrome so AppKit enforces the right window bounds`() {
+    func `minimumContentSize preserves the declared content coordinate floor`() {
         let minimum = NSSize(width: 420, height: 360)
-        let chrome = NSSize(width: 16, height: 28)
-        let result = SettingsWindowSizing.minimumContentSize(for: minimum, chrome: chrome)
-        #expect(result.width == 404)
-        #expect(result.height == 332)
+        let result = SettingsWindowSizing.minimumContentSize(for: minimum)
+        #expect(result == minimum)
     }
 
     @Test
-    func `minimumContentSize never goes below 1 even if chrome exceeds the minimum`() {
+    func `minimumContentSize never goes below 1`() {
         let result = SettingsWindowSizing.minimumContentSize(
-            for: NSSize(width: 20, height: 20),
-            chrome: NSSize(width: 100, height: 100)
+            for: NSSize(width: -20, height: 0)
         )
         #expect(result.width == 1)
         #expect(result.height == 1)

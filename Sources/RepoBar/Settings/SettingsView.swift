@@ -119,8 +119,7 @@ struct SettingsView: View {
         // Establish resizability bounds once, derived from the actual chrome so the user
         // can drag the window edge to a sensible size but never past the screen.
         window.contentMinSize = SettingsWindowSizing.minimumContentSize(
-            for: SettingsTab.minimumContentSize,
-            chrome: chrome
+            for: SettingsTab.minimumContentSize
         )
         if let visibleFrame {
             window.contentMaxSize = SettingsWindowSizing.maximumContentSize(
@@ -175,17 +174,11 @@ enum SettingsWindowSizing {
         )
     }
 
-    /// The absolute minimum content size the window should allow. The chrome is added back
-    /// because AppKit's `contentMinSize` is in content coordinates, not window-frame coords.
-    static func minimumContentSize(
-        for minimum: NSSize,
-        chrome: NSSize
-    ) -> NSSize {
-        let chromeWidth = max(0, chrome.width)
-        let chromeHeight = max(0, chrome.height)
+    /// AppKit's `contentMinSize` is already expressed in content coordinates.
+    static func minimumContentSize(for minimum: NSSize) -> NSSize {
         return NSSize(
-            width: max(minimum.width - chromeWidth, 1),
-            height: max(minimum.height - chromeHeight, 1)
+            width: max(minimum.width, 1),
+            height: max(minimum.height, 1)
         )
     }
 
