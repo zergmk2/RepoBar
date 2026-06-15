@@ -57,19 +57,22 @@ struct SettingsView: View {
     }
 
     private func updateLayout(for tab: SettingsTab, animate: Bool) {
-        let contentSize = Self.resizeSettingsWindow(
-            width: tab.preferredWidth,
-            height: tab.preferredHeight,
-            animate: animate
+        let desiredContentSize = NSSize(width: tab.preferredWidth, height: tab.preferredHeight)
+        let contentSize = Self.clampedSettingsContentSize(
+            desired: desiredContentSize
         )
-        let change = {
-            self.contentWidth = contentSize.width
-            self.contentHeight = contentSize.height
-        }
-        if animate {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { change() }
-        } else {
-            change()
+        let previousTopEdge = Self.settingsWindow?.frame.maxY
+        self.contentWidth = contentSize.width
+        self.contentHeight = contentSize.height
+
+        // Let SwiftUI finish resizing its Settings window before applying AppKit bounds or
+        // repositioning it. Mutating the frame during that constraint pass can crash AppKit.
+        Task { @MainActor in
+            await Task.yield()
+            if animate {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            Self.configureSettingsWindow(contentSize: contentSize, previousTopEdge: previousTopEdge)
         }
     }
 
@@ -91,55 +94,52 @@ struct SettingsView: View {
         return Set(titles)
     }
 
-    private static func resizeSettingsWindow(width: CGFloat, height: CGFloat, animate: Bool) -> NSSize {
-        let desiredContentSize = NSSize(width: width, height: height)
-        guard let window = NSApp.windows.first(where: {
+    private static var settingsWindow: NSWindow? {
+        NSApp.windows.first(where: {
             $0.identifier?.rawValue == self.settingsWindowIdentifier
                 || self.knownTabTitles.contains($0.title)
-        }) else { return desiredContentSize }
+        })
+    }
 
-        let toolbarHeight = window.frame.height - window.contentLayoutRect.height
-        guard toolbarHeight > 0 else { return desiredContentSize }
-
-        let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame
-        let contentSize = SettingsWindowSizing.clampedContentSize(
-            desired: desiredContentSize,
-            visibleFrame: visibleFrame,
+    private static func clampedSettingsContentSize(desired: NSSize) -> NSSize {
+        guard let window = self.settingsWindow else { return desired }
+        return SettingsWindowSizing.clampedContentSize(
+            desired: desired,
+            visibleFrame: (window.screen ?? NSScreen.main)?.visibleFrame,
             chrome: window.frameRect(forContentRect: .zero).size
         )
+    }
+
+    private static func configureSettingsWindow(contentSize: NSSize, previousTopEdge: CGFloat?) {
+        guard let window = self.settingsWindow else { return }
+
+        let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame
+        let chrome = window.frameRect(forContentRect: .zero).size
 
         // Establish resizability bounds once, derived from the actual chrome so the user
         // can drag the window edge to a sensible size but never past the screen.
         window.contentMinSize = SettingsWindowSizing.minimumContentSize(
             for: SettingsTab.minimumContentSize,
-            chrome: window.frameRect(forContentRect: .zero).size
+            chrome: chrome
         )
         if let visibleFrame {
             window.contentMaxSize = SettingsWindowSizing.maximumContentSize(
                 for: visibleFrame,
-                chrome: window.frameRect(forContentRect: .zero).size
+                chrome: chrome
             )
         }
 
-        let newSize = NSSize(
-            width: contentSize.width,
-            height: contentSize.height + toolbarHeight
-        )
+        let toolbarHeight = max(0, window.frame.height - window.contentLayoutRect.height)
         var frame = window.frame
-        let oldSize = frame.size
-        frame.size = newSize
-        // Anchor the top edge so the title bar doesn't jump when switching tabs, but never
-        // push the bottom below the screen's visible area.
-        frame.origin.y += oldSize.height - newSize.height
+        frame.size = NSSize(width: contentSize.width, height: contentSize.height + toolbarHeight)
         if let visibleFrame {
             frame.origin.y = SettingsWindowSizing.clampedWindowOriginY(
-                proposedOriginY: frame.origin.y,
-                windowHeight: newSize.height,
+                proposedOriginY: previousTopEdge.map { $0 - frame.height } ?? frame.origin.y,
+                windowHeight: frame.height,
                 visibleFrame: visibleFrame
             )
         }
-        window.setFrame(frame, display: true, animate: animate)
-        return contentSize
+        window.setFrame(frame, display: true, animate: false)
     }
 }
 
