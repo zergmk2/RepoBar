@@ -96,10 +96,83 @@ struct SettingsView: View {
         let toolbarHeight = window.frame.height - window.contentLayoutRect.height
         guard toolbarHeight > 0 else { return }
 
-        let newSize = NSSize(width: width, height: height + toolbarHeight)
+        let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame
+        let contentSize = SettingsWindowSizing.clampedContentSize(
+            desired: NSSize(width: width, height: height),
+            visibleFrame: visibleFrame,
+            chrome: window.frameRect(forContentRect: .zero).size
+        )
+
+        // Establish resizability bounds once, derived from the actual chrome so the user
+        // can drag the window edge to a sensible size but never past the screen.
+        window.contentMinSize = SettingsWindowSizing.minimumContentSize(
+            for: SettingsTab.minimumContentSize,
+            chrome: window.frameRect(forContentRect: .zero).size
+        )
+        if let visibleFrame {
+            window.contentMaxSize = NSSize(
+                width: max(1, visibleFrame.width),
+                height: max(1, visibleFrame.height)
+            )
+        }
+
+        let newSize = NSSize(
+            width: contentSize.width,
+            height: contentSize.height + toolbarHeight
+        )
         var frame = window.frame
-        frame.origin.y += frame.size.height - newSize.height
+        let oldSize = frame.size
         frame.size = newSize
+        // Anchor the top edge so the title bar doesn't jump when switching tabs, but never
+        // push the bottom below the screen's visible area.
+        frame.origin.y += oldSize.height - newSize.height
+        if let visibleFrame {
+            let maxY = visibleFrame.maxY
+            let minY = visibleFrame.minY + newSize.height
+            if frame.maxY > maxY {
+                frame.origin.y = maxY - newSize.height
+            } else if frame.minY < minY {
+                frame.origin.y = visibleFrame.minY
+            }
+        }
         window.setFrame(frame, display: true, animate: animate)
+    }
+}
+
+/// Pure helpers for sizing the Settings window. Kept AppKit-free at the core so we can unit
+/// test the clamping logic without standing up an `NSWindow` in tests.
+enum SettingsWindowSizing {
+    /// Clamp a desired content size so its enclosing frame (content + chrome) fits inside
+    /// `visibleFrame` (i.e. the screen area not covered by the menu bar or Dock). Returns the
+    /// desired size unchanged when no visible frame is available.
+    static func clampedContentSize(
+        desired: NSSize,
+        visibleFrame: NSRect?,
+        chrome: NSSize = .zero
+    ) -> NSSize {
+        guard let visibleFrame else { return desired }
+
+        let chromeWidth = max(0, chrome.width)
+        let chromeHeight = max(0, chrome.height)
+        let maxWidth = max(1, visibleFrame.width - chromeWidth)
+        let maxHeight = max(1, visibleFrame.height - chromeHeight)
+        return NSSize(
+            width: min(desired.width, maxWidth),
+            height: min(desired.height, maxHeight)
+        )
+    }
+
+    /// The absolute minimum content size the window should allow. The chrome is added back
+    /// because AppKit's `contentMinSize` is in content coordinates, not window-frame coords.
+    static func minimumContentSize(
+        for minimum: NSSize,
+        chrome: NSSize
+    ) -> NSSize {
+        let chromeWidth = max(0, chrome.width)
+        let chromeHeight = max(0, chrome.height)
+        return NSSize(
+            width: max(minimum.width - chromeWidth, 1),
+            height: max(minimum.height - chromeHeight, 1)
+        )
     }
 }
