@@ -79,6 +79,8 @@ struct SettingsView: View {
             if animate {
                 try? await Task.sleep(for: .milliseconds(100))
             }
+            guard self.session.settingsSelectedTab == tab else { return }
+
             Self.configureSettingsWindow(contentSize: contentSize, previousTopEdge: previousTopEdge)
         }
     }
