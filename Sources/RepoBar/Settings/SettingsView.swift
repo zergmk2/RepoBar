@@ -110,9 +110,9 @@ struct SettingsView: View {
             chrome: window.frameRect(forContentRect: .zero).size
         )
         if let visibleFrame {
-            window.contentMaxSize = NSSize(
-                width: max(1, visibleFrame.width),
-                height: max(1, visibleFrame.height)
+            window.contentMaxSize = SettingsWindowSizing.maximumContentSize(
+                for: visibleFrame,
+                chrome: window.frameRect(forContentRect: .zero).size
             )
         }
 
@@ -127,13 +127,11 @@ struct SettingsView: View {
         // push the bottom below the screen's visible area.
         frame.origin.y += oldSize.height - newSize.height
         if let visibleFrame {
-            let maxY = visibleFrame.maxY
-            let minY = visibleFrame.minY + newSize.height
-            if frame.maxY > maxY {
-                frame.origin.y = maxY - newSize.height
-            } else if frame.minY < minY {
-                frame.origin.y = visibleFrame.minY
-            }
+            frame.origin.y = SettingsWindowSizing.clampedWindowOriginY(
+                proposedOriginY: frame.origin.y,
+                windowHeight: newSize.height,
+                visibleFrame: visibleFrame
+            )
         }
         window.setFrame(frame, display: true, animate: animate)
     }
@@ -174,5 +172,29 @@ enum SettingsWindowSizing {
             width: max(minimum.width - chromeWidth, 1),
             height: max(minimum.height - chromeHeight, 1)
         )
+    }
+
+    /// AppKit expects `contentMaxSize` in content coordinates, so remove the window chrome
+    /// from the screen's visible frame before applying the resize limit.
+    static func maximumContentSize(
+        for visibleFrame: NSRect,
+        chrome: NSSize
+    ) -> NSSize {
+        let chromeWidth = max(0, chrome.width)
+        let chromeHeight = max(0, chrome.height)
+        return NSSize(
+            width: max(visibleFrame.width - chromeWidth, 1),
+            height: max(visibleFrame.height - chromeHeight, 1)
+        )
+    }
+
+    static func clampedWindowOriginY(
+        proposedOriginY: CGFloat,
+        windowHeight: CGFloat,
+        visibleFrame: NSRect
+    ) -> CGFloat {
+        let minimumOriginY = visibleFrame.minY
+        let maximumOriginY = max(minimumOriginY, visibleFrame.maxY - max(windowHeight, 0))
+        return min(max(proposedOriginY, minimumOriginY), maximumOriginY)
     }
 }

@@ -103,4 +103,57 @@ struct SettingsWindowSizingTests {
         #expect(result.width == 1)
         #expect(result.height == 1)
     }
+
+    @Test
+    func `maximumContentSize subtracts chrome from the visible frame`() {
+        let result = SettingsWindowSizing.maximumContentSize(
+            for: NSRect(x: 0, y: 63, width: 1440, height: 807),
+            chrome: NSSize(width: 16, height: 28)
+        )
+        #expect(result.width == 1424)
+        #expect(result.height == 779)
+    }
+
+    @Test
+    func `maximumContentSize never goes below 1 when chrome exceeds the visible frame`() {
+        let result = SettingsWindowSizing.maximumContentSize(
+            for: NSRect(x: 0, y: 0, width: 20, height: 20),
+            chrome: NSSize(width: 100, height: 100)
+        )
+        #expect(result.width == 1)
+        #expect(result.height == 1)
+    }
+
+    @Test
+    func `window origin remains unchanged when the resized frame is already visible`() {
+        let visible = NSRect(x: 0, y: 63, width: 1440, height: 807)
+        let result = SettingsWindowSizing.clampedWindowOriginY(
+            proposedOriginY: 120,
+            windowHeight: 648,
+            visibleFrame: visible
+        )
+        #expect(result == 120)
+    }
+
+    @Test
+    func `window origin clamps to the visible bottom edge`() {
+        let visible = NSRect(x: 0, y: 63, width: 1440, height: 807)
+        let result = SettingsWindowSizing.clampedWindowOriginY(
+            proposedOriginY: 40,
+            windowHeight: 648,
+            visibleFrame: visible
+        )
+        #expect(result == visible.minY)
+    }
+
+    @Test
+    func `window origin clamps to the visible top edge`() {
+        let visible = NSRect(x: 0, y: 63, width: 1440, height: 807)
+        let result = SettingsWindowSizing.clampedWindowOriginY(
+            proposedOriginY: 400,
+            windowHeight: 648,
+            visibleFrame: visible
+        )
+        #expect(result == visible.maxY - 648)
+    }
 }
