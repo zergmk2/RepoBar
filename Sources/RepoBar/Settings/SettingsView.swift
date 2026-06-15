@@ -134,6 +134,11 @@ struct SettingsView: View {
             height: contentSize.height + chrome.height
         )
         if let visibleFrame {
+            frame.origin.x = SettingsWindowSizing.clampedWindowOriginX(
+                proposedOriginX: frame.origin.x,
+                windowWidth: frame.width,
+                visibleFrame: visibleFrame
+            )
             frame.origin.y = SettingsWindowSizing.clampedWindowOriginY(
                 proposedOriginY: previousTopEdge.map { $0 - frame.height } ?? frame.origin.y,
                 windowHeight: frame.height,
@@ -194,6 +199,16 @@ enum SettingsWindowSizing {
             width: max(visibleFrame.width - chromeWidth, 1),
             height: max(visibleFrame.height - chromeHeight, 1)
         )
+    }
+
+    static func clampedWindowOriginX(
+        proposedOriginX: CGFloat,
+        windowWidth: CGFloat,
+        visibleFrame: NSRect
+    ) -> CGFloat {
+        let minimumOriginX = visibleFrame.minX
+        let maximumOriginX = max(minimumOriginX, visibleFrame.maxX - max(windowWidth, 0))
+        return min(max(proposedOriginX, minimumOriginX), maximumOriginX)
     }
 
     static func clampedWindowOriginY(

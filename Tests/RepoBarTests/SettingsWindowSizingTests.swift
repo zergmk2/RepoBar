@@ -134,6 +134,28 @@ struct SettingsWindowSizingTests {
     }
 
     @Test
+    func `window origin clamps to the visible right edge after widening`() {
+        let visible = NSRect(x: 100, y: 63, width: 1440, height: 807)
+        let result = SettingsWindowSizing.clampedWindowOriginX(
+            proposedOriginX: 1200,
+            windowWidth: 980,
+            visibleFrame: visible
+        )
+        #expect(result == 560)
+    }
+
+    @Test
+    func `window origin clamps to the visible left edge`() {
+        let visible = NSRect(x: 100, y: 63, width: 1440, height: 807)
+        let result = SettingsWindowSizing.clampedWindowOriginX(
+            proposedOriginX: 20,
+            windowWidth: 540,
+            visibleFrame: visible
+        )
+        #expect(result == 100)
+    }
+
+    @Test
     func `window origin remains unchanged when the resized frame is already visible`() {
         let visible = NSRect(x: 0, y: 63, width: 1440, height: 807)
         let result = SettingsWindowSizing.clampedWindowOriginY(
