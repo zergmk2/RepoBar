@@ -29,8 +29,12 @@ public struct OAuthTokenRefresher: Sendable {
             return tokens
         }
 
-        let credentials = try accountID.flatMap { try self.tokenStore.loadClientCredentials(accountID: $0) }
-            ?? self.tokenStore.loadClientCredentials()
+        let storedCredentials = if let accountID {
+            try self.tokenStore.loadClientCredentials(accountID: accountID)
+        } else {
+            try self.tokenStore.loadClientCredentials()
+        }
+        let credentials = storedCredentials
             ?? OAuthClientCredentials(clientID: RepoBarAuthDefaults.clientID, clientSecret: RepoBarAuthDefaults.clientSecret)
 
         let base = host.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))

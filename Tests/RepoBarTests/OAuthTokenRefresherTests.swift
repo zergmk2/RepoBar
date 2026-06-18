@@ -207,6 +207,42 @@ struct OAuthTokenRefresherTests {
         let refreshed = try await refresher.refreshIfNeeded(host: RepoBarAuthDefaults.githubHost)
         #expect(refreshed == tokens)
     }
+
+    @Test
+    func `account refresh does not inherit legacy client credentials`() async throws {
+        let service = "com.steipete.repobar.auth.tests.\(UUID().uuidString)"
+        let accountID = "github.com#alice"
+        let store = TokenStore(service: service)
+        defer {
+            store.clear()
+            store.clear(accountID: accountID)
+        }
+
+        try store.save(tokens: OAuthTokens(accessToken: "legacy", refreshToken: "legacy-refresh", expiresAt: .distantPast))
+        try store.save(clientCredentials: OAuthClientCredentials(clientID: "legacy-client", clientSecret: "legacy-secret"))
+        try store.save(
+            tokens: OAuthTokens(accessToken: "account", refreshToken: "account-refresh", expiresAt: .distantPast),
+            accountID: accountID
+        )
+        let refresher = OAuthTokenRefresher(tokenStore: store) { request in
+            let body = try #require(Self.bodyString(from: request))
+            #expect(body.contains("client_id=legacy-client") == false)
+            #expect(body.contains("client_secret=legacy-secret") == false)
+            #expect(body.contains("refresh_token=account-refresh"))
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let data = Data("""
+            {"access_token":"fresh","token_type":"bearer","scope":"repo","expires_in":3600}
+            """.utf8)
+            return (data, response)
+        }
+
+        let refreshed = try await refresher.refreshIfNeeded(
+            host: RepoBarAuthDefaults.githubHost,
+            accountID: accountID
+        )
+
+        #expect(refreshed?.accessToken == "fresh")
+    }
 }
 
 private extension OAuthTokenRefresherTests {

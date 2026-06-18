@@ -12,10 +12,17 @@ final class AccountManager {
     private(set) var accounts: [Account] = []
     private(set) var activeAccountID: String?
     private var clients: [String: GitHubClient] = [:]
-    private let tokenStore = TokenStore.shared
+    private let tokenStore: TokenStore
+    private let oauthRefresher: OAuthTokenRefresher
     private let signposter = OSSignposter(subsystem: "com.steipete.repobar", category: "account-manager")
 
-    init() {}
+    init(
+        tokenStore: TokenStore = .shared,
+        oauthRefresher: OAuthTokenRefresher? = nil
+    ) {
+        self.tokenStore = tokenStore
+        self.oauthRefresher = oauthRefresher ?? OAuthTokenRefresher(tokenStore: tokenStore)
+    }
 
     // MARK: - Bootstrap
 
@@ -120,7 +127,7 @@ final class AccountManager {
         switch account.authMethod {
         case .pat:
             // PATs do not refresh.
-            if let pat = try? self.tokenStore.loadPAT(accountID: accountID) {
+            if let pat = try self.tokenStore.loadPAT(accountID: accountID) {
                 return OAuthTokens(accessToken: pat, refreshToken: "", expiresAt: nil)
             }
             return nil
@@ -144,18 +151,12 @@ final class AccountManager {
         guard let account = self.accounts.first(where: { $0.id == accountID }) else { return nil }
 
         if account.authMethod == .pat {
-            if let pat = try? self.tokenStore.loadPAT(accountID: accountID) {
+            if let pat = try self.tokenStore.loadPAT(accountID: accountID) {
                 return pat
             }
             return nil
         }
-        if let refreshed = try await self.refreshOAuth(account: account, force: false) {
-            return refreshed.accessToken
-        }
-        if let tokens = try? self.tokenStore.loadTokens(accountID: accountID) {
-            return tokens.accessToken
-        }
-        return nil
+        return try await self.refreshOAuth(account: account, force: false)?.accessToken
     }
 
     // MARK: - Private
@@ -165,22 +166,21 @@ final class AccountManager {
         await client.setAPIHost(account.apiHost)
         let accountID = account.id
         let store = self.tokenStore
-        let host = account.host
+        let refresher = self.oauthRefresher
         await client.setTokenProvider { @Sendable [weak self] in
-            // Prefer the manager's refresh path so OAuth credentials stay current.
-            if let strongSelf = self {
-                if let token = try? await strongSelf.currentAccessToken(accountID: accountID) {
-                    return OAuthTokens(accessToken: token, refreshToken: "", expiresAt: nil)
-                }
+            if let self {
+                guard let token = try await self.currentAccessToken(accountID: accountID) else { return nil }
+
+                return OAuthTokens(accessToken: token, refreshToken: "", expiresAt: nil)
             }
-            // Fallback to direct store reads in case the manager is gone.
-            if let pat = try? store.loadPAT(accountID: accountID) {
+
+            // A client can outlive the manager; preserve its account-scoped credential behavior.
+            if account.authMethod == .pat, let pat = try store.loadPAT(accountID: accountID) {
                 return OAuthTokens(accessToken: pat, refreshToken: "", expiresAt: nil)
             }
-            if let tokens = try? store.loadTokens(accountID: accountID) {
-                return tokens
+            if account.authMethod == .oauth {
+                return try await refresher.refreshIfNeeded(host: account.host, accountID: accountID)
             }
-            _ = host
             return nil
         }
         self.clients[account.id] = client
@@ -190,87 +190,10 @@ final class AccountManager {
         let signpost = self.signposter.beginInterval("refreshOAuth")
         defer { self.signposter.endInterval("refreshOAuth", signpost) }
 
-        let refresher = AccountScopedOAuthRefresher(tokenStore: self.tokenStore, accountID: account.id)
-        return try await refresher.refreshIfNeeded(host: account.host, force: force)
-    }
-}
-
-/// Account-scoped wrapper around `OAuthTokenRefresher` semantics. Reuses the
-/// shared refresh request shape but reads/writes account-scoped Keychain keys.
-struct AccountScopedOAuthRefresher {
-    let tokenStore: TokenStore
-    let accountID: String
-    let load: @Sendable (URLRequest) async throws -> (Data, URLResponse)
-
-    init(
-        tokenStore: TokenStore,
-        accountID: String,
-        load: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
-        }
-    ) {
-        self.tokenStore = tokenStore
-        self.accountID = accountID
-        self.load = load
-    }
-
-    func refreshIfNeeded(host: URL, force: Bool) async throws -> OAuthTokens? {
-        guard var tokens = try tokenStore.loadTokens(accountID: self.accountID) else { return nil }
-
-        if tokens.refreshToken.isEmpty {
-            return tokens
-        }
-        if force == false, let expiry = tokens.expiresAt, expiry > Date().addingTimeInterval(60) {
-            return tokens
-        }
-
-        let credentials = try tokenStore.loadClientCredentials(accountID: self.accountID)
-            ?? OAuthClientCredentials(
-                clientID: RepoBarAuthDefaults.clientID,
-                clientSecret: RepoBarAuthDefaults.clientSecret
-            )
-
-        let base = host.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let refreshURL = URL(string: "\(base)/login/oauth/access_token")!
-        var request = URLRequest(url: refreshURL)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = OAuthFormEncoder.encode([
-            "client_id": credentials.clientID,
-            "client_secret": credentials.clientSecret,
-            "grant_type": "refresh_token",
-            "refresh_token": tokens.refreshToken
-        ])
-
-        let (data, responseAny) = try await self.load(request)
-        guard let response = responseAny as? HTTPURLResponse, response.statusCode == 200 else {
-            throw GitHubAPIError.badStatus(
-                code: (responseAny as? HTTPURLResponse)?.statusCode ?? -1,
-                message: "Authentication refresh failed. Please sign in again."
-            )
-        }
-
-        let decoded = try JSONDecoder().decode(AccountRefreshTokenResponse.self, from: data)
-        let expires = Date().addingTimeInterval(TimeInterval(decoded.expiresIn ?? 3600))
-        tokens = OAuthTokens(
-            accessToken: decoded.accessToken,
-            refreshToken: decoded.refreshToken ?? tokens.refreshToken,
-            expiresAt: expires
+        return try await self.oauthRefresher.refreshIfNeeded(
+            host: account.host,
+            force: force,
+            accountID: account.id
         )
-        try self.tokenStore.save(tokens: tokens, accountID: self.accountID)
-        return tokens
-    }
-}
-
-private struct AccountRefreshTokenResponse: Decodable {
-    let accessToken: String
-    let expiresIn: Int?
-    let refreshToken: String?
-
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case expiresIn = "expires_in"
-        case refreshToken = "refresh_token"
     }
 }
