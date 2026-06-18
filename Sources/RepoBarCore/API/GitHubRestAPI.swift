@@ -652,7 +652,9 @@ struct GitHubRestAPI {
         let release = try GitHubDecoding.decode(ReleaseResponse.self, from: data)
         return GitHubReleasePicker.latestRelease(from: [release])
     }
+}
 
+extension GitHubRestAPI {
     func recentList<T>(
         owner: String,
         name: String,

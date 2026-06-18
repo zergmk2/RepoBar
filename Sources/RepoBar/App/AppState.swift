@@ -217,7 +217,9 @@ final class AppState {
     func clearOpenAIAPIKey() {
         OpenAIAPIKeyStore().clearStoredKey()
     }
+}
 
+extension AppState {
     func updateGitHubReferenceMonitor() {
         guard self.isStarted else {
             self.gitHubReferenceMonitor?.stop()
