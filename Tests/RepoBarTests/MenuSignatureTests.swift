@@ -4,6 +4,38 @@ import Foundation
 import Testing
 
 struct MenuSignatureTests {
+    @MainActor
+    @Test
+    func `repo submenu cache preserves full name when API id differs`() {
+        let appState = AppState()
+        let manager = StatusBarMenuManager(appState: appState)
+        let builder = StatusBarMenuBuilder(appState: appState, target: manager)
+        let repo = Repository(
+            id: "opaque-api-node-id",
+            name: "Repo",
+            owner: "owner",
+            sortOrder: nil,
+            error: nil,
+            rateLimitedUntil: nil,
+            ciStatus: .unknown,
+            openIssues: 0,
+            openPulls: 0,
+            latestRelease: nil,
+            latestActivity: nil,
+            traffic: nil,
+            heatmap: []
+        )
+
+        let submenu = builder.repoSubmenu(
+            for: RepositoryDisplayModel(repo: repo),
+            isPinned: false
+        )
+
+        #expect(builder.repoFullName(for: submenu) == "owner/Repo")
+        #expect(builder.repoSubmenusByFullName["owner/Repo"]?.menu === submenu)
+        #expect(builder.repoSubmenusByFullName[repo.id] == nil)
+    }
+
     @Test
     func `repo submenu signature changes with repo counts`() {
         let now = Date(timeIntervalSinceReferenceDate: 1_000_000)

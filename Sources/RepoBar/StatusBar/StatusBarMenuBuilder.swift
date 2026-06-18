@@ -10,8 +10,8 @@ final class StatusBarMenuBuilder {
     let appState: AppState
     unowned let target: StatusBarMenuManager
     let signposter = OSSignposter(subsystem: "com.steipete.repobar", category: "menu")
-    var repoMenuItemCache: [String: NSMenuItem] = [:]
-    var repoSubmenuCache: [String: RepoSubmenuCacheEntry] = [:]
+    var repoMenuItemsByID: [String: NSMenuItem] = [:]
+    var repoSubmenusByFullName: [String: RepoSubmenuCacheEntry] = [:]
     var systemImageCache: [String: NSImage] = [:]
     let menuItemFactory = MenuItemViewFactory()
 
@@ -198,7 +198,8 @@ final class StatusBarMenuBuilder {
                 return [self.viewItem(for: emptyState, enabled: false)]
             }
             var items: [NSMenuItem] = []
-            var usedRepoKeys: Set<String> = []
+            var usedRepoIDs: Set<String> = []
+            var usedRepoFullNames: Set<String> = []
             for (index, repo) in uniqueRepos.enumerated() {
                 let isPinned = settings.repoList.pinnedRepositories.contains {
                     $0.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -210,10 +211,11 @@ final class StatusBarMenuBuilder {
                 if index < uniqueRepos.count - 1 {
                     items.append(self.repoCardSeparator())
                 }
-                usedRepoKeys.insert(repo.id)
+                usedRepoIDs.insert(repo.id)
+                usedRepoFullNames.insert(repo.title)
             }
-            self.repoMenuItemCache = self.repoMenuItemCache.filter { usedRepoKeys.contains($0.key) }
-            self.repoSubmenuCache = self.repoSubmenuCache.filter { usedRepoKeys.contains($0.key) }
+            self.repoMenuItemsByID = self.repoMenuItemsByID.filter { usedRepoIDs.contains($0.key) }
+            self.repoSubmenusByFullName = self.repoSubmenusByFullName.filter { usedRepoFullNames.contains($0.key) }
             return items
         case .issueNavigator:
             guard case .loggedIn = session.account else { return [] }

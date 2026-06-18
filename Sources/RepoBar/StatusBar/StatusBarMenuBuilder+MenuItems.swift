@@ -24,7 +24,7 @@ extension StatusBarMenuBuilder {
             }
         )
         let submenu = self.repoSubmenu(for: repo, isPinned: isPinned)
-        if let cached = self.repoMenuItemCache[repo.id] {
+        if let cached = self.repoMenuItemsByID[repo.id] {
             // Remove from current menu if attached (prevents crash when reusing cached items)
             cached.menu?.removeItem(cached)
             self.menuItemFactory.updateItem(cached, with: card, highlightable: true, showsSubmenuIndicator: true)
@@ -35,7 +35,7 @@ extension StatusBarMenuBuilder {
             return cached
         }
         let item = self.viewItem(for: card, enabled: true, highlightable: true, submenu: submenu)
-        self.repoMenuItemCache[repo.id] = item
+        self.repoMenuItemsByID[repo.id] = item
         return item
     }
 
@@ -57,20 +57,20 @@ extension StatusBarMenuBuilder {
             changelogHeadline: changelogHeadline,
             isPinned: isPinned
         )
-        if let cached = self.repoSubmenuCache[repo.id], cached.signature == signature {
+        if let cached = self.repoSubmenusByFullName[repo.title], cached.signature == signature {
             return cached.menu
         }
         let menu = self.makeRepoSubmenu(for: repo, isPinned: isPinned)
-        self.repoSubmenuCache[repo.id] = RepoSubmenuCacheEntry(menu: menu, signature: signature)
+        self.repoSubmenusByFullName[repo.title] = RepoSubmenuCacheEntry(menu: menu, signature: signature)
         return menu
     }
 
     func repoFullName(for menu: NSMenu) -> String? {
-        self.repoSubmenuCache.first(where: { $0.value.menu === menu })?.key
+        self.repoSubmenusByFullName.first(where: { $0.value.menu === menu })?.key
     }
 
     func updateChangelogRow(fullName: String, releaseTag: String?) {
-        guard let cached = self.repoSubmenuCache[fullName] else { return }
+        guard let cached = self.repoSubmenusByFullName[fullName] else { return }
         guard let item = cached.menu.items.first(where: {
             guard let identifier = $0.representedObject as? RepoSubmenuRowIdentifier else { return false }
 
