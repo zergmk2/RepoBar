@@ -22,16 +22,19 @@ final class AppState {
     let menuRefreshInterval: TimeInterval = 30
     var refreshTask: Task<Void, Never>?
     var localProjectsTask: Task<Void, Never>?
+    private var startupTask: Task<Void, Never>?
     private var tokenRefreshTask: Task<Void, Never>?
     var menuRefreshTask: Task<Void, Never>?
     private var gitHubReferenceMonitor: GitHubReferenceMonitor?
     private var gitHubReferenceResolutionID = UUID()
+    private var lifecycleID = UUID()
     var refreshTaskToken = UUID()
     let hydrateConcurrencyLimit = 4
     var prefetchTask: Task<Void, Never>?
     private let tokenRefreshInterval: TimeInterval = 300
     let menuRefreshDebounceInterval: TimeInterval = 1
     var lastMenuRefreshRequest: Date?
+    private(set) var isStarted = false
 
     // Default GitHub App values for convenience login from the main window.
     let defaultClientID = RepoBarAuthDefaults.clientID
@@ -59,58 +62,112 @@ final class AppState {
             self.session.settings.authMethod = inferredAuthMethod
             self.settingsStore.save(self.session.settings)
         }
-        // Capture tokenStore separately for Sendable compliance
+    }
+
+    func start() {
+        guard self.isStarted == false else { return }
+
+        self.isStarted = true
+        let lifecycleID = UUID()
+        self.lifecycleID = lifecycleID
         let tokenStore = TokenStore.shared
-        Task {
-            await self.github.setTokenProvider { @Sendable [weak self] () async throws -> OAuthTokens? in
-                guard let self else { return nil }
+        self.startupTask = Task { [weak self] in
+            await self?.performStartup(tokenStore: tokenStore, lifecycleID: lifecycleID)
+        }
+    }
 
-                let accountID = await MainActor.run { self.session.settings.resolvedActiveAccount()?.id }
-                if let accountID {
-                    if let token = try? await self.accountManager.currentAccessToken(accountID: accountID) {
-                        return OAuthTokens(accessToken: token, refreshToken: "", expiresAt: nil)
-                    }
-                    return nil
+    func shutdown() {
+        guard self.isStarted else { return }
+
+        self.isStarted = false
+        self.lifecycleID = UUID()
+        self.startupTask?.cancel()
+        self.startupTask = nil
+        self.tokenRefreshTask?.cancel()
+        self.tokenRefreshTask = nil
+        self.refreshTask?.cancel()
+        self.refreshTask = nil
+        self.localProjectsTask?.cancel()
+        self.localProjectsTask = nil
+        self.menuRefreshTask?.cancel()
+        self.menuRefreshTask = nil
+        self.prefetchTask?.cancel()
+        self.prefetchTask = nil
+        self.refreshTaskToken = UUID()
+        self.refreshScheduler.stop()
+        self.gitHubReferenceMonitor?.stop()
+        self.gitHubReferenceMonitor = nil
+    }
+
+    private func performStartup(tokenStore: TokenStore, lifecycleID: UUID) async {
+        guard self.isCurrentLifecycle(lifecycleID) else { return }
+
+        await self.github.setTokenProvider { @Sendable [weak self] () async throws -> OAuthTokens? in
+            guard let self else { return nil }
+
+            let accountID = await MainActor.run { self.session.settings.resolvedActiveAccount()?.id }
+            if let accountID {
+                if let token = try? await self.accountManager.currentAccessToken(accountID: accountID) {
+                    return OAuthTokens(accessToken: token, refreshToken: "", expiresAt: nil)
                 }
-
-                let authMethod = await MainActor.run { self.session.settings.authMethod }
-                if authMethod == .pat {
-                    if let pat = try? tokenStore.loadPAT() {
-                        return OAuthTokens(accessToken: pat, refreshToken: "", expiresAt: nil)
-                    }
-                }
-                return try? await self.auth.refreshIfNeeded()
+                return nil
             }
-        }
-        self.tokenRefreshTask = Task { [weak self] in
-            guard let self else { return }
 
-            while !Task.isCancelled {
-                if self.session.settings.authMethod == .oauth, self.auth.loadTokens() != nil {
-                    _ = try? await self.auth.refreshIfNeeded()
-                }
-                // Fan out to every account-scoped OAuth refresher. PAT-only
-                // accounts are no-ops and OAuth accounts refresh independently.
-                await self.accountManager.refreshAllIfNeeded()
-                try? await Task.sleep(for: .seconds(self.tokenRefreshInterval))
+            let authMethod = await MainActor.run { self.session.settings.authMethod }
+            if authMethod == .pat, let pat = try? tokenStore.loadPAT() {
+                return OAuthTokens(accessToken: pat, refreshToken: "", expiresAt: nil)
             }
+            return try? await self.auth.refreshIfNeeded()
         }
-        // Bootstrap account manager before the first scheduled refresh so
-        // account-scoped credentials are available to the token provider.
-        Task { [weak self] in
-            guard let self else { return }
+        guard self.isCurrentLifecycle(lifecycleID) else { return }
 
-            await self.bootstrapAccounts()
-            self.refreshScheduler.configure(interval: self.session.settings.refreshInterval.seconds) { [weak self] in
-                self?.requestRefresh()
-            }
+        await self.bootstrapAccounts()
+        guard self.isCurrentLifecycle(lifecycleID) else { return }
+
+        self.startTokenRefreshLoop(lifecycleID: lifecycleID)
+        self.refreshScheduler.configure(interval: self.session.settings.refreshInterval.seconds) { [weak self] in
+            self?.requestRefresh()
         }
-        Task { await DiagnosticsLogger.shared.setEnabled(self.session.settings.diagnosticsEnabled) }
-        Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(250))
-            await self?.refreshRateLimitDisplayState()
-        }
+        await DiagnosticsLogger.shared.setEnabled(self.session.settings.diagnosticsEnabled)
         self.updateGitHubReferenceMonitor()
+        try? await Task.sleep(for: .milliseconds(250))
+        guard self.isCurrentLifecycle(lifecycleID) else { return }
+
+        await self.refreshRateLimitDisplayState()
+        if self.lifecycleID == lifecycleID {
+            self.startupTask = nil
+        }
+    }
+
+    private func startTokenRefreshLoop(lifecycleID: UUID) {
+        self.tokenRefreshTask?.cancel()
+        self.tokenRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let interval = await self?.refreshStoredTokens(lifecycleID: lifecycleID) else { return }
+
+                do {
+                    try await Task.sleep(for: .seconds(interval))
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+
+    private func refreshStoredTokens(lifecycleID: UUID) async -> TimeInterval? {
+        guard self.isCurrentLifecycle(lifecycleID) else { return nil }
+
+        if self.session.settings.authMethod == .oauth, self.auth.loadTokens() != nil {
+            _ = try? await self.auth.refreshIfNeeded()
+        }
+        // Fan out to every account-scoped OAuth refresher. PAT-only
+        // accounts are no-ops and OAuth accounts refresh independently.
+        await self.accountManager.refreshAllIfNeeded()
+        return self.isCurrentLifecycle(lifecycleID) ? self.tokenRefreshInterval : nil
+    }
+
+    private func isCurrentLifecycle(_ lifecycleID: UUID) -> Bool {
+        self.isStarted && self.lifecycleID == lifecycleID && Task.isCancelled == false
     }
 
     struct GlobalActivityResult {
@@ -161,6 +218,11 @@ final class AppState {
     }
 
     func updateGitHubReferenceMonitor() {
+        guard self.isStarted else {
+            self.gitHubReferenceMonitor?.stop()
+            self.gitHubReferenceMonitor = nil
+            return
+        }
         guard self.session.settings.gitHubReferenceMonitor.enabled else {
             Task { await DiagnosticsLogger.shared.message("GitHub reference monitor disabled") }
             self.gitHubReferenceMonitor?.stop()

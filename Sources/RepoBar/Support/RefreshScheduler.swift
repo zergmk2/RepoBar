@@ -32,4 +32,14 @@ final class RefreshScheduler {
     func forceRefresh() {
         self.tickHandler?()
     }
+
+    func stop() {
+        self.timer?.invalidate()
+        self.timer = nil
+        self.tickHandler = nil
+    }
+
+    var isRunning: Bool {
+        self.timer?.isValid == true
+    }
 }

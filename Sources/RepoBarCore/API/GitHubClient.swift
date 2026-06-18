@@ -47,11 +47,11 @@ public actor GitHubClient {
 
     // MARK: - Config
 
-    public func setAPIHost(_ host: URL) {
+    public func setAPIHost(_ host: URL) async {
         do {
             let trusted = try self.trusted(host)
             self.apiHost = trusted
-            Task { await self.graphQL.setEndpoint(apiHost: trusted) }
+            await self.graphQL.setEndpoint(apiHost: trusted)
             Task { await self.diag.message("API host set to \(trusted.absoluteString)") }
         } catch {
             Task { await self.diag.message("Rejected API host \(host) (must be https with hostname)") }
@@ -65,15 +65,12 @@ public actor GitHubClient {
         return host
     }
 
-    public func setTokenProvider(_ provider: @Sendable @escaping () async throws -> OAuthTokens?) {
+    public func setTokenProvider(_ provider: @Sendable @escaping () async throws -> OAuthTokens?) async {
         self.tokenProvider = provider
-        // swiftlint:disable:next unhandled_throwing_task
-        Task {
-            await self.graphQL.setTokenProvider {
-                guard let tokens = try await provider() else { throw URLError(.userAuthenticationRequired) }
+        await self.graphQL.setTokenProvider {
+            guard let tokens = try await provider() else { throw URLError(.userAuthenticationRequired) }
 
-                return tokens.accessToken
-            }
+            return tokens.accessToken
         }
     }
 

@@ -85,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         configureImagePipeline()
+        self.menuManager?.appState.start()
         UNUserNotificationCenter.current().delegate = RepoBarNotificationResponseHandler.shared
         NotificationCenter.default.addObserver(
             self,
@@ -96,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_: Notification) {
+        self.menuManager?.appState.shutdown()
         self.menuManager?.tearDownStatusItems()
     }
 

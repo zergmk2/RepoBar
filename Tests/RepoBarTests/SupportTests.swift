@@ -18,6 +18,48 @@ struct RefreshAndBackoffTests {
     }
 
     @Test
+    func `scheduler stop invalidates timer and releases tick`() {
+        let scheduler = RefreshScheduler()
+        var fireCount = 0
+        scheduler.configure(interval: 60, fireImmediately: false) {
+            fireCount += 1
+        }
+        #expect(scheduler.isRunning)
+
+        scheduler.stop()
+        scheduler.forceRefresh()
+
+        #expect(scheduler.isRunning == false)
+        #expect(fireCount == 0)
+    }
+
+    @Test
+    func `app state runtime lifecycle is explicit and idempotent`() async {
+        weak var releasedState: AppState?
+        do {
+            let appState = AppState()
+            releasedState = appState
+            #expect(appState.isStarted == false)
+
+            appState.start()
+            appState.start()
+            #expect(appState.isStarted)
+
+            appState.shutdown()
+            appState.shutdown()
+            #expect(appState.isStarted == false)
+            #expect(appState.refreshScheduler.isRunning == false)
+
+            appState.start()
+            #expect(appState.isStarted)
+            appState.shutdown()
+        }
+
+        await Task.yield()
+        #expect(releasedState == nil)
+    }
+
+    @Test
     func `backoff tracks cooldown`() async throws {
         let tracker = BackoffTracker()
         let url = try #require(URL(string: "https://example.com/path"))
