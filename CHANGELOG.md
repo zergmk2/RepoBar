@@ -2,6 +2,7 @@
 
 ## 0.8.4 - Unreleased
 
+- Coalesce concurrent OAuth token refreshes per account so rotating refresh tokens cannot race or overwrite newer credentials.
 - Persist the repository display limit from Settings and expose the active heatmap color control in General settings.
 - Keep every Settings tab inside the visible display frame, allow bounded manual resizing, and prevent the Repositories table from forcing the window under the Dock (thanks @Yuxin-Qiao). (#84)
 - Update Kingfisher to 8.10.0 for safer asynchronous image cancellation and macOS image decoding.

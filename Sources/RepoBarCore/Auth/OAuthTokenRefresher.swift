@@ -1,6 +1,8 @@
 import Foundation
 
 public struct OAuthTokenRefresher: Sendable {
+    private static let refreshGate = OAuthRefreshGate()
+
     private let tokenStore: TokenStore
     private let load: @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
@@ -19,8 +21,27 @@ public struct OAuthTokenRefresher: Sendable {
     }
 
     public func refreshIfNeeded(host: URL, force: Bool = false, accountID: String?) async throws -> OAuthTokens? {
-        let loadTokens = accountID.map { try? self.tokenStore.loadTokens(accountID: $0) } ?? (try? self.tokenStore.load())
-        guard var tokens = loadTokens else { return nil }
+        guard let tokens = self.loadTokens(accountID: accountID) else { return nil }
+
+        if tokens.refreshToken.isEmpty {
+            return tokens
+        }
+        if force == false, let expiry = tokens.expiresAt, expiry > Date().addingTimeInterval(60) {
+            return tokens
+        }
+
+        let key = OAuthRefreshKey(
+            tokenStore: self.tokenStore.oauthRefreshCoordinationID,
+            host: host.absoluteString,
+            accountID: accountID
+        )
+        return try await Self.refreshGate.run(key: key) {
+            try await self.performRefreshIfNeeded(host: host, force: force, accountID: accountID)
+        }
+    }
+
+    private func performRefreshIfNeeded(host: URL, force: Bool, accountID: String?) async throws -> OAuthTokens? {
+        guard var tokens = self.loadTokens(accountID: accountID) else { return nil }
 
         if tokens.refreshToken.isEmpty {
             return tokens
@@ -79,6 +100,52 @@ public struct OAuthTokenRefresher: Sendable {
             let message = Self.refreshDecodeFailureMessage(detail: detail)
             throw GitHubAPIError.badStatus(code: response.statusCode, message: message)
         }
+    }
+
+    private func loadTokens(accountID: String?) -> OAuthTokens? {
+        accountID.map { try? self.tokenStore.loadTokens(accountID: $0) } ?? (try? self.tokenStore.load())
+    }
+}
+
+private struct OAuthRefreshKey: Hashable {
+    let tokenStore: String
+    let host: String
+    let accountID: String?
+}
+
+private actor OAuthRefreshGate {
+    private struct Entry {
+        let id: UUID
+        let task: Task<OAuthTokens?, Error>
+    }
+
+    private var entries: [OAuthRefreshKey: Entry] = [:]
+
+    func run(
+        key: OAuthRefreshKey,
+        operation: @escaping @Sendable () async throws -> OAuthTokens?
+    ) async throws -> OAuthTokens? {
+        if let entry = self.entries[key] {
+            return try await entry.task.value
+        }
+
+        let id = UUID()
+        let task = Task { try await operation() }
+        self.entries[key] = Entry(id: id, task: task)
+        do {
+            let tokens = try await task.value
+            self.removeEntry(key: key, id: id)
+            return tokens
+        } catch {
+            self.removeEntry(key: key, id: id)
+            throw error
+        }
+    }
+
+    private func removeEntry(key: OAuthRefreshKey, id: UUID) {
+        guard self.entries[key]?.id == id else { return }
+
+        self.entries[key] = nil
     }
 }
 

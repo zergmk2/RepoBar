@@ -54,6 +54,16 @@ public struct TokenStore: Sendable {
         self.storage = storage ?? Self.defaultStorage()
     }
 
+    var oauthRefreshCoordinationID: String {
+        let storageID = switch self.storage {
+        case .keychain:
+            "keychain"
+        case let .file(url):
+            "file:\(url.standardizedFileURL.path)"
+        }
+        return [self.service, self.accessGroup ?? "", storageID].joined(separator: "\u{1f}")
+    }
+
     public func save(tokens: OAuthTokens) throws {
         let data = try JSONEncoder().encode(tokens)
         try self.save(data: data, account: "default")
