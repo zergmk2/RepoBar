@@ -1,14 +1,8 @@
-import Algorithms
 import AppKit
 import RepoBarCore
 import SwiftUI
 
 // swiftlint:disable file_length
-
-private struct IssueNavigatorAISummary {
-    let signature: String
-    let text: String
-}
 
 struct IssueNavigatorView: View {
     private enum Metrics {
@@ -21,48 +15,21 @@ struct IssueNavigatorView: View {
     }
 
     let appState: AppState
-    @State private var searchText = ""
-    @State private var kindFilter: IssueNavigatorKindFilter = .all
-    @State private var selectedScope = IssueNavigatorScope.all
-    @State private var results: [GitHubReferenceMatch] = []
-    @State private var selectedURL: URL?
-    @State private var isSearching = false
-    @State private var statusText = "Loading recent issues and pull requests."
-    @State private var errorText: String?
-    @State private var searchTask: Task<Void, Never>?
-    @State private var summaryTask: Task<Void, Never>?
-    @State private var aiSummariesByURL: [URL: IssueNavigatorAISummary] = [:]
-    @State private var searchGeneration = UUID()
-    @State private var clipboardText: String?
-    @State private var clipboardQueries: [GitHubReferenceQuery] = []
-    @State private var browserNavigationVersion = 0
-    private let browserStore: IssueNavigatorBrowserStore
-
-    private var repositories: [Repository] {
-        self.appState.gitHubReferenceRepositories()
-    }
-
-    private var scopes: [IssueNavigatorScope] {
-        [.all] + self.repositories.map { IssueNavigatorScope(fullName: $0.fullName, title: $0.fullName) }
-    }
-
-    private var selectedMatch: GitHubReferenceMatch? {
-        guard let selectedURL else { return self.results.first }
-
-        return self.results.first { $0.url == selectedURL } ?? self.results.first
-    }
+    @State private var model: IssueNavigatorModel
 
     init(
         appState: AppState,
         initialMatches: [GitHubReferenceMatch] = [],
         browserStore: IssueNavigatorBrowserStore
     ) {
-        let matches = initialMatches.issueNavigatorOrderPreservingDeduped()
         self.appState = appState
-        self.browserStore = browserStore
-        self._results = State(initialValue: matches)
-        self._selectedURL = State(initialValue: matches.first?.url)
-        self._statusText = State(initialValue: matches.isEmpty ? "Loading recent issues and pull requests." : "References in pasted order")
+        self._model = State(
+            initialValue: IssueNavigatorModel(
+                appState: appState,
+                initialMatches: initialMatches,
+                browserStore: browserStore
+            )
+        )
     }
 
     var body: some View {
@@ -79,54 +46,35 @@ struct IssueNavigatorView: View {
         .background(.ultraThinMaterial)
         .frame(minWidth: 1080, minHeight: 620)
         .onAppear {
-            self.browserStore.onNavigationStateChange = {
-                self.browserNavigationVersion &+= 1
-            }
-            self.updateClipboard(seedIfEmpty: Self.shouldSeedClipboardOnAppear(hasInitialMatches: self.results.isEmpty == false))
-            if self.results.isEmpty {
-                self.scheduleSearch(immediate: true)
-            } else {
-                self.preloadPreviews(for: self.results)
-                self.scheduleAISummaries(for: self.results, generation: self.searchGeneration)
-            }
+            self.model.start(
+                seedClipboard: Self.shouldSeedClipboardOnAppear(hasInitialMatches: self.model.results.isEmpty == false)
+            )
         }
         .onDisappear {
-            self.searchGeneration = UUID()
-            self.searchTask?.cancel()
-            self.summaryTask?.cancel()
-            self.browserStore.onNavigationStateChange = nil
-            self.browserStore.clear()
+            self.model.stop()
         }
         .onReceive(
             Timer.publish(every: 1, tolerance: 0.25, on: .main, in: .common).autoconnect()
         ) { _ in
-            self.updateClipboard(seedIfEmpty: false)
+            self.model.updateClipboard(seedIfEmpty: false)
         }
         .onReceive(NotificationCenter.default.publisher(for: .issueNavigatorUseClipboard)) { _ in
-            self.useClipboard()
+            self.model.useClipboard()
         }
         .onReceive(NotificationCenter.default.publisher(for: .issueNavigatorRefresh)) { _ in
-            self.scheduleSearch(immediate: true)
+            self.model.scheduleSearch(immediate: true)
         }
         .onReceive(NotificationCenter.default.publisher(for: .issueNavigatorCopy)) { _ in
-            if let match = self.selectedMatch {
-                self.copy(match)
-            }
+            self.model.copySelected()
         }
         .onReceive(NotificationCenter.default.publisher(for: .issueNavigatorOpen)) { _ in
-            if let match = self.selectedMatch {
-                self.open(match)
-            }
+            self.model.openSelected()
         }
-        .onChange(of: self.searchText) { _, _ in self.scheduleSearch() }
-        .onChange(of: self.kindFilter) { _, _ in self.scheduleSearch(immediate: true) }
-        .onChange(of: self.selectedScope) { _, _ in self.scheduleSearch(immediate: true) }
+        .onChange(of: self.model.searchText) { _, _ in self.model.scheduleSearch() }
+        .onChange(of: self.model.kindFilter) { _, _ in self.model.scheduleSearch(immediate: true) }
+        .onChange(of: self.model.selectedScope) { _, _ in self.model.scheduleSearch(immediate: true) }
         .onChange(of: self.appState.session.settings.aiSummaries) { _, settings in
-            self.summaryTask?.cancel()
-            self.aiSummariesByURL = [:]
-            if settings.enabled {
-                self.scheduleAISummaries(for: self.results, generation: self.searchGeneration)
-            }
+            self.model.aiSummarySettingsDidChange(settings)
         }
     }
 
@@ -140,41 +88,39 @@ struct IssueNavigatorView: View {
     }
 
     private var sidebarControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        @Bindable var model = self.model
+
+        return VStack(alignment: .leading, spacing: 8) {
             IssueNavigatorSearchField(
-                text: self.$searchText,
+                text: $model.searchText,
                 placeholder: "Search issues and pull requests",
                 onSubmit: {
-                    if let match = self.selectedMatch {
-                        self.open(match)
-                    } else {
-                        self.scheduleSearch(immediate: true)
-                    }
+                    self.model.submitSearch()
                 }
             )
             .frame(height: Metrics.controlHeight)
 
             HStack(spacing: 8) {
-                IssueNavigatorScopePopUp(selection: self.$selectedScope, scopes: self.scopes)
+                IssueNavigatorScopePopUp(selection: $model.selectedScope, scopes: self.model.scopes)
                     .frame(maxWidth: .infinity)
                     .frame(height: Metrics.controlHeight)
 
-                if self.isSearching {
+                if self.model.isSearching {
                     ProgressView()
                         .controlSize(.small)
                 }
             }
 
-            IssueNavigatorKindSegmentedControl(selection: self.$kindFilter)
+            IssueNavigatorKindSegmentedControl(selection: $model.kindFilter)
                 .frame(height: Metrics.controlHeight)
 
-            if self.shouldShowClipboardPrompt {
+            if self.model.shouldShowClipboardPrompt {
                 Button {
-                    self.useClipboard()
+                    self.model.useClipboard()
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "doc.on.clipboard")
-                        Text("Clipboard: \(self.clipboardDisplayText)")
+                        Text("Clipboard: \(self.model.clipboardDisplayText)")
                             .lineLimit(1)
                         Spacer()
                         Image(systemName: "arrow.turn.down.left")
@@ -191,7 +137,7 @@ struct IssueNavigatorView: View {
                 )
             }
 
-            Text(self.statusLine)
+            Text(self.model.statusLine)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -204,7 +150,7 @@ struct IssueNavigatorView: View {
     private var resultPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                IssueNavigatorCountBadge(count: self.results.count)
+                IssueNavigatorCountBadge(count: self.model.results.count)
                 Spacer()
                 Text("Updated newest first")
                     .font(.caption)
@@ -215,45 +161,43 @@ struct IssueNavigatorView: View {
             .padding(.top, 2)
             .padding(.bottom, 10)
 
-            if let errorText {
+            if let errorText = self.model.errorText {
                 self.sidebarMessage(
                     title: "Search failed",
                     message: errorText,
                     systemImage: "exclamationmark.triangle"
                 )
-            } else if self.results.isEmpty {
+            } else if self.model.results.isEmpty {
                 self.sidebarMessage(
                     title: "No matches",
-                    message: self.statusText,
+                    message: self.model.statusText,
                     systemImage: "tray"
                 )
             } else {
                 ScrollView {
                     LazyVStack(spacing: 1) {
-                        ForEach(self.results, id: \.url) { match in
+                        ForEach(self.model.results, id: \.url) { match in
                             IssueNavigatorResultRow(
-                                match: self.displayMatch(match),
+                                match: self.model.displayMatch(match),
                                 now: Date(),
-                                isSelected: self.selectedURL == match.url,
-                                onOpen: { self.open(match) }
+                                isSelected: self.model.selectedURL == match.url,
+                                onOpen: { self.model.open(match) }
                             )
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                self.select(match)
+                                self.model.select(match)
                             }
                             .contextMenu {
-                                Button("Open in Browser") { self.open(match) }
-                                Button("Copy URL") { self.copy(match) }
+                                Button("Open in Browser") { self.model.open(match) }
+                                Button("Copy URL") { self.model.copy(match) }
                             }
                         }
                     }
                     .padding(.horizontal, 8)
                     .padding(.bottom, 14)
                 }
-                .onChange(of: self.selectedURL) { _, newValue in
-                    guard newValue == nil, let first = self.results.first else { return }
-
-                    self.selectedURL = first.url
+                .onChange(of: self.model.selectedURL) { _, _ in
+                    self.model.ensureSelection()
                 }
             }
         }
@@ -285,10 +229,10 @@ struct IssueNavigatorView: View {
 
     private var previewPane: some View {
         Group {
-            if let match = self.selectedMatch {
+            if let match = self.model.selectedMatch {
                 VStack(spacing: 0) {
                     self.previewHeader(for: match)
-                    IssueNavigatorBrowserPreview(url: match.url, store: self.browserStore)
+                    IssueNavigatorBrowserPreview(url: match.url, store: self.model.browserStore)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
@@ -310,11 +254,11 @@ struct IssueNavigatorView: View {
     }
 
     private func previewHeader(for match: GitHubReferenceMatch) -> some View {
-        let canGoBack = self.browserStore.canGoBack(match.url)
+        let canGoBack = self.model.browserStore.canGoBack(match.url)
 
         return HStack(spacing: 12) {
             Button {
-                self.browserStore.goBack(match.url)
+                self.model.browserStore.goBack(match.url)
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 13, weight: .semibold))
@@ -351,7 +295,7 @@ struct IssueNavigatorView: View {
             }
             Spacer()
         }
-        .id(self.browserNavigationVersion)
+        .id(self.model.browserNavigationVersion)
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
         .background(.bar)
@@ -360,301 +304,8 @@ struct IssueNavigatorView: View {
         }
     }
 
-    private var shouldShowClipboardPrompt: Bool {
-        guard let clipboardText else { return false }
-
-        return self.clipboardQueries.isEmpty == false && clipboardText != self.searchText
-    }
-
-    private var clipboardDisplayText: String {
-        self.clipboardQueries.map(\.displayText).joined(separator: ", ")
-    }
-
-    private var statusLine: String {
-        if self.isSearching { return "Searching…" }
-        if let errorText { return errorText }
-        return self.statusText
-    }
-
-    private func scheduleSearch(immediate: Bool = false) {
-        let generation = UUID()
-        self.searchGeneration = generation
-        self.searchTask?.cancel()
-        self.summaryTask?.cancel()
-        self.searchTask = Task {
-            if !immediate {
-                try? await Task.sleep(for: .milliseconds(250))
-            }
-            guard !Task.isCancelled else { return }
-
-            await self.performSearch(generation: generation)
-        }
-    }
-
     nonisolated static func shouldSeedClipboardOnAppear(hasInitialMatches: Bool) -> Bool {
         !hasInitialMatches
-    }
-
-    @MainActor
-    private func performSearch(generation: UUID) async {
-        guard self.isCurrentSearch(generation) else { return }
-
-        let trimmed = self.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let selectedRepository = self.selectedScope.fullName
-        let queries = GitHubReferenceTranslator.queries(
-            from: trimmed,
-            minimumBareDigits: AppLimits.GitHubReferenceMonitor.minimumBareDigits,
-            repositoryContextOverride: selectedRepository
-        )
-        let canRunTextSearch = queries.isEmpty &&
-            (selectedRepository != nil || trimmed.count >= AppLimits.IssueNavigator.minimumSearchCharacters)
-        if trimmed.isEmpty || (queries.isEmpty && !canRunTextSearch) {
-            self.isSearching = true
-            self.errorText = nil
-            defer {
-                if self.isCurrentSearch(generation) {
-                    self.isSearching = false
-                }
-            }
-
-            do {
-                let matches = try await self.appState.recentIssueReferences(
-                    repositoryFullName: selectedRepository,
-                    includeIssues: self.kindFilter.includeIssues,
-                    includePullRequests: self.kindFilter.includePullRequests
-                )
-                guard self.isCurrentSearch(generation) else { return }
-
-                self.results = matches
-                self.selectedURL = matches.first?.url
-                self.preloadPreviews(for: matches)
-                self.scheduleAISummaries(for: matches, generation: generation)
-                if matches.isEmpty {
-                    self.statusText = "No recent issues or pull requests in this scope."
-                } else if trimmed.isEmpty {
-                    self.statusText = "Recent subscribed and accessible items"
-                } else {
-                    self.statusText = "Showing recent items; type at least \(AppLimits.IssueNavigator.minimumSearchCharacters) characters to search."
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                guard self.isCurrentSearch(generation) else { return }
-
-                self.results = []
-                self.selectedURL = nil
-                self.errorText = error.userFacingMessage
-            }
-            return
-        }
-
-        guard queries.isEmpty == false || canRunTextSearch else {
-            guard self.isCurrentSearch(generation) else { return }
-
-            self.results = []
-            self.selectedURL = nil
-            self.statusText = "Type at least \(AppLimits.IssueNavigator.minimumSearchCharacters) characters, or paste a GitHub reference."
-            self.errorText = nil
-            return
-        }
-
-        self.isSearching = true
-        self.errorText = nil
-        defer {
-            if self.isCurrentSearch(generation) {
-                self.isSearching = false
-            }
-        }
-
-        do {
-            async let referenceMatches = self.appState.resolveGitHubReferenceQueries(queries, sourceText: trimmed)
-            async let textMatches: [GitHubReferenceMatch] = canRunTextSearch
-                ? self.appState.searchIssueReferences(
-                    matching: trimmed,
-                    repositoryFullName: selectedRepository,
-                    includeIssues: self.kindFilter.includeIssues,
-                    includePullRequests: self.kindFilter.includePullRequests
-                )
-                : []
-
-            let resolvedReferenceMatches = await referenceMatches
-            let searchedTextMatches = try await textMatches
-            guard self.isCurrentSearch(generation) else { return }
-
-            let filteredReferenceMatches = resolvedReferenceMatches.filter { self.kindFilter.matches($0.kind) }
-            let combined = queries.isEmpty
-                ? Self.deduped(filteredReferenceMatches + searchedTextMatches)
-                : (filteredReferenceMatches + searchedTextMatches).issueNavigatorOrderPreservingDeduped()
-            self.results = combined
-            self.selectedURL = combined.first?.url
-            self.preloadPreviews(for: combined)
-            self.scheduleAISummaries(for: combined, generation: generation)
-            self.statusText = self.status(for: combined, searchedText: trimmed, preservesReferenceOrder: queries.isEmpty == false)
-        } catch is CancellationError {
-            return
-        } catch {
-            guard self.isCurrentSearch(generation) else { return }
-
-            self.results = []
-            self.selectedURL = nil
-            self.errorText = error.userFacingMessage
-        }
-    }
-
-    func isCurrentSearch(_ generation: UUID) -> Bool {
-        !Task.isCancelled && self.searchGeneration == generation
-    }
-
-    private func updateClipboard(seedIfEmpty: Bool) {
-        let text = NSPasteboard.general.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let text, text.isEmpty == false else {
-            self.clipboardText = nil
-            self.clipboardQueries = []
-            return
-        }
-
-        let queries = GitHubReferenceTranslator.queries(
-            from: text,
-            minimumBareDigits: AppLimits.GitHubReferenceMonitor.minimumBareDigits
-        )
-        self.clipboardText = text
-        self.clipboardQueries = queries
-        if seedIfEmpty, self.searchText.isEmpty, queries.isEmpty == false {
-            self.searchText = text
-        }
-    }
-
-    private func useClipboard() {
-        guard let clipboardText else { return }
-
-        self.searchText = clipboardText
-        self.scheduleSearch(immediate: true)
-    }
-
-    private func preloadPreviews(for matches: [GitHubReferenceMatch]) {
-        self.browserStore.preload(
-            matches
-                .prefix(AppLimits.IssueNavigator.webPreviewPreloadLimit)
-                .map(\.url)
-        )
-    }
-
-    private func displayMatch(_ match: GitHubReferenceMatch) -> GitHubReferenceMatch {
-        let settings = self.appState.session.settings.aiSummaries
-        guard settings.enabled,
-              let summary = self.aiSummariesByURL[match.url],
-              summary.signature == Self.aiSummarySignature(for: match, settings: settings)
-        else { return match }
-
-        return match.withAISummary(summary.text)
-    }
-
-    private func scheduleAISummaries(for matches: [GitHubReferenceMatch], generation: UUID) {
-        self.summaryTask?.cancel()
-        let urls = Set(matches.map(\.url))
-        self.aiSummariesByURL = self.aiSummariesByURL.filter { urls.contains($0.key) }
-
-        let settings = self.appState.session.settings.aiSummaries
-        guard settings.enabled else {
-            self.aiSummariesByURL = [:]
-            return
-        }
-
-        let pending = matches.filter {
-            $0.isResolved
-                && self.aiSummariesByURL[$0.url]?.signature != Self.aiSummarySignature(for: $0, settings: settings)
-        }
-        guard pending.isEmpty == false else { return }
-
-        self.summaryTask = Task {
-            await self.loadAISummaries(for: pending, settings: settings, generation: generation)
-        }
-    }
-
-    @MainActor
-    private func loadAISummaries(for matches: [GitHubReferenceMatch], settings: AISummarySettings, generation: UUID) async {
-        let summarizer = PullRequestAISummarizer()
-        for chunk in matches.chunks(ofCount: AppLimits.IssueNavigator.aiSummaryConcurrencyLimit) {
-            guard self.isCurrentSearch(generation),
-                  self.appState.session.settings.aiSummaries == settings,
-                  settings.enabled
-            else { return }
-
-            await withTaskGroup(of: (url: URL, signature: String, summary: String?).self) { group in
-                for match in chunk {
-                    let signature = Self.aiSummarySignature(for: match, settings: settings)
-                    group.addTask {
-                        let summary = try? await summarizer.summarize(match, settings: settings)
-                        return (match.url, signature, summary)
-                    }
-                }
-
-                for await (url, signature, summary) in group {
-                    guard self.isCurrentSearch(generation),
-                          self.appState.session.settings.aiSummaries == settings,
-                          settings.enabled
-                    else {
-                        group.cancelAll()
-                        return
-                    }
-
-                    if let summary {
-                        self.aiSummariesByURL[url] = IssueNavigatorAISummary(signature: signature, text: summary)
-                    }
-                }
-            }
-        }
-    }
-
-    private static func aiSummarySignature(for match: GitHubReferenceMatch, settings: AISummarySettings) -> String {
-        [
-            settings.model,
-            match.updatedAt.timeIntervalSinceReferenceDate.description,
-            match.title,
-            match.bodyPreview ?? "",
-            match.authorLogin ?? ""
-        ].joined(separator: "\u{1f}")
-    }
-
-    private static func deduped(_ matches: [GitHubReferenceMatch]) -> [GitHubReferenceMatch] {
-        var seen: Set<URL> = []
-        return matches
-            .filter { seen.insert($0.url).inserted }
-            .sorted {
-                if $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
-                return ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast)
-            }
-    }
-
-    private func select(_ match: GitHubReferenceMatch) {
-        if self.selectedURL == match.url {
-            self.browserStore.reloadInitialURL(match.url)
-        }
-        self.selectedURL = match.url
-    }
-
-    private func status(
-        for matches: [GitHubReferenceMatch],
-        searchedText: String,
-        preservesReferenceOrder: Bool = false
-    ) -> String {
-        if matches.isEmpty {
-            searchedText.isEmpty ? "No recent items in this scope." : "No matching issues or pull requests."
-        } else if preservesReferenceOrder {
-            "References in pasted order"
-        } else {
-            "Updated newest first"
-        }
-    }
-
-    private func open(_ match: GitHubReferenceMatch) {
-        NSWorkspace.shared.open(match.url)
-    }
-
-    private func copy(_ match: GitHubReferenceMatch) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(match.url.absoluteString, forType: .string)
     }
 
     private func symbolName(for match: GitHubReferenceMatch) -> String {
