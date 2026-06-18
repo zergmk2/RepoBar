@@ -303,7 +303,7 @@ extension GitHubRestAPI {
         var request = URLRequest(url: url)
         request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.addValue("RepoBar", forHTTPHeaderField: "User-Agent")
-        let (data, responseAny) = try await URLSession.shared.data(for: request)
+        let (data, responseAny) = try await self.dataLoader.data(for: request)
         guard let response = responseAny as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }

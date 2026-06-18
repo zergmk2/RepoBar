@@ -6,6 +6,7 @@ actor GraphQLClient {
     private var tokenProvider: (@Sendable () async throws -> String)?
     private var rateLimit: RateLimitSnapshot?
     private let responseCache: GraphQLResponseDiskCache?
+    private let dataLoader: HTTPDataLoader
     private let responseCacheTTL: TimeInterval = 15 * 60
     private let requestLimiter = AsyncPermitPool(limit: 4)
     private let decoder: JSONDecoder = {
@@ -16,8 +17,12 @@ actor GraphQLClient {
 
     private let diag = DiagnosticsLogger.shared
 
-    init(responseCache: GraphQLResponseDiskCache? = GraphQLResponseDiskCache.standard()) {
+    init(
+        responseCache: GraphQLResponseDiskCache? = GraphQLResponseDiskCache.standard(),
+        dataLoader: HTTPDataLoader = .live
+    ) {
         self.responseCache = responseCache
+        self.dataLoader = dataLoader
     }
 
     func setEndpoint(apiHost: URL) {
@@ -240,7 +245,7 @@ actor GraphQLClient {
     private func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         await self.requestLimiter.acquire()
         do {
-            let result = try await URLSession.shared.data(for: request)
+            let result = try await self.dataLoader.data(for: request)
             await self.requestLimiter.release()
             return result
         } catch {

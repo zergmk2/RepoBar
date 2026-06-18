@@ -13,19 +13,22 @@ struct GitHubRestAPI {
     let requestRunner: GitHubRequestRunner
     let diag: DiagnosticsLogger
     let responseDiskCache: HTTPResponseDiskCache?
+    let dataLoader: HTTPDataLoader
 
     init(
         apiHost: @escaping @Sendable () async -> URL,
         tokenProvider: @escaping @Sendable () async throws -> String,
         requestRunner: GitHubRequestRunner,
         diag: DiagnosticsLogger,
-        responseDiskCache: HTTPResponseDiskCache? = HTTPResponseDiskCache.standard()
+        responseDiskCache: HTTPResponseDiskCache? = HTTPResponseDiskCache.standard(),
+        dataLoader: HTTPDataLoader = .live
     ) {
         self.apiHost = apiHost
         self.tokenProvider = tokenProvider
         self.requestRunner = requestRunner
         self.diag = diag
         self.responseDiskCache = responseDiskCache
+        self.dataLoader = dataLoader
     }
 
     static func userReposQueryItems() -> [URLQueryItem] {
