@@ -15,7 +15,7 @@ final class AppState {
     var github: GitHubClient
     let accountManager = AccountManager()
     let refreshScheduler = RefreshScheduler()
-    let settingsStore = SettingsStore()
+    let settingsStore: SettingsStore
     let gitHubPullRequestNotificationRunner = GitHubPullRequestNotificationRunner()
     let gitHubReleaseNotificationRunner = GitHubReleaseNotificationRunner()
     let localRepoManager = LocalRepoManager()
@@ -43,10 +43,11 @@ final class AppState {
     let defaultGitHubHost = RepoBarAuthDefaults.githubHost
     let defaultAPIHost = RepoBarAuthDefaults.apiHost
 
-    init() {
+    init(settingsStore: SettingsStore = SettingsStore()) {
         let legacyGitHub = GitHubClient()
         self.legacyGitHub = legacyGitHub
         self.github = legacyGitHub
+        self.settingsStore = settingsStore
         self.session.settings = self.settingsStore.load()
         self.reloadRateLimitCacheSummary()
         RepoBarLogging.bootstrapIfNeeded()

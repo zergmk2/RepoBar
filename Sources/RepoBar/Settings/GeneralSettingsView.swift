@@ -21,60 +21,59 @@ struct GeneralSettingsView: View {
     private func toggleShowOnlyMyRepos(_ enabled: Bool) {
         guard let username = self.normalizedCurrentUsername else { return }
 
-        self.session.settings.repoList.ownerFilter = enabled ? [username] : []
+        self.appState.updateSetting(
+            \.repoList.ownerFilter,
+            to: enabled ? [username] : [],
+            effects: .cancelInFlightRefresh
+        )
+    }
 
-        self.appState.persistSettings()
-        self.appState.requestRefresh(cancelInFlight: true)
+    private func setting<Value>(
+        _ keyPath: WritableKeyPath<UserSettings, Value>,
+        effects: SettingsUpdateEffects = []
+    ) -> Binding<Value> {
+        Binding(
+            get: { self.session.settings[keyPath: keyPath] },
+            set: { value in
+                self.appState.updateSetting(keyPath, to: value, effects: effects)
+            }
+        )
     }
 
     var body: some View {
         VStack(spacing: 12) {
             Form {
                 Section {
-                    Toggle("Launch at login", isOn: self.$session.settings.launchAtLogin)
-                        .onChange(of: self.session.settings.launchAtLogin) { _, value in
-                            LaunchAtLoginHelper.set(enabled: value)
-                            self.appState.persistSettings()
-                        }
+                    Toggle("Launch at login", isOn: self.setting(\.launchAtLogin, effects: .launchAtLogin))
                 } footer: {
                     Text("Automatically opens RepoBar when you start your Mac.")
                 }
 
                 Section {
-                    Toggle("Show contribution header", isOn: self.$session.settings.appearance.showContributionHeader)
-                        .onChange(of: self.session.settings.appearance.showContributionHeader) { _, _ in
-                            self.appState.persistSettings()
-                        }
-                    Toggle("Show GitHub rate-limit meter in menu bar", isOn: self.$session.settings.appearance.showRateLimitMeterInMenuBar)
-                        .onChange(of: self.session.settings.appearance.showRateLimitMeterInMenuBar) { _, _ in
-                            self.appState.persistSettings()
-                            NotificationCenter.default.post(name: .menuDiagnosticsDidChange, object: nil)
-                        }
-                    Picker("Activity feed", selection: self.$session.settings.appearance.activityScope) {
+                    Toggle("Show contribution header", isOn: self.setting(\.appearance.showContributionHeader))
+                    Toggle(
+                        "Show GitHub rate-limit meter in menu bar",
+                        isOn: self.setting(\.appearance.showRateLimitMeterInMenuBar, effects: .menuDiagnostics)
+                    )
+                    Picker("Activity feed", selection: self.setting(\.appearance.activityScope, effects: .refresh)) {
                         ForEach(GlobalActivityScope.allCases, id: \.self) { scope in
                             Text(scope.label).tag(scope)
                         }
                     }
-                    .onChange(of: self.session.settings.appearance.activityScope) { _, _ in
-                        self.appState.persistSettings()
-                        self.appState.requestRefresh()
-                    }
-                    Picker("Repository heatmap", selection: self.$session.settings.heatmap.display) {
+                    Picker("Repository heatmap", selection: self.setting(\.heatmap.display)) {
                         ForEach(HeatmapDisplay.allCases, id: \.self) { display in
                             Text(display.label).tag(display)
                         }
                     }
-                    .onChange(of: self.session.settings.heatmap.display) { _, _ in
-                        self.appState.persistSettings()
-                    }
-                    Picker("Heatmap window", selection: self.$session.settings.heatmap.span) {
+                    Picker("Heatmap window", selection: self.setting(\.heatmap.span, effects: .heatmapRange)) {
                         ForEach(HeatmapSpan.allCases, id: \.self) { span in
                             Text(span.label).tag(span)
                         }
                     }
-                    .onChange(of: self.session.settings.heatmap.span) { _, _ in
-                        self.appState.persistSettings()
-                        self.appState.updateHeatmapRange(now: Date())
+                    Picker("Heatmap color", selection: self.setting(\.appearance.accentTone)) {
+                        ForEach(AccentTone.allCases, id: \.self) { tone in
+                            Text(tone.label).tag(tone)
+                        }
                     }
                 } header: {
                     Text("Display")
@@ -83,27 +82,22 @@ struct GeneralSettingsView: View {
                 }
 
                 Section {
-                    Picker("Repositories shown", selection: self.$session.settings.repoList.displayLimit) {
+                    Picker("Repositories shown", selection: self.setting(\.repoList.displayLimit)) {
                         ForEach([3, 6, 9, 12], id: \.self) { Text("\($0)").tag($0) }
                     }
-                    Picker("Menu sort", selection: self.$session.settings.repoList.menuSortKey) {
+                    Picker("Menu sort", selection: self.setting(\.repoList.menuSortKey)) {
                         ForEach(RepositorySortKey.settingsCases, id: \.self) { sortKey in
                             Text(sortKey.settingsLabel).tag(sortKey)
                         }
                     }
-                    .onChange(of: self.session.settings.repoList.menuSortKey) { _, _ in
-                        self.appState.persistSettings()
-                    }
-                    Toggle("Include forked repositories", isOn: self.$session.settings.repoList.showForks)
-                        .onChange(of: self.session.settings.repoList.showForks) { _, _ in
-                            self.appState.persistSettings()
-                            self.appState.requestRefresh(cancelInFlight: true)
-                        }
-                    Toggle("Include archived repositories", isOn: self.$session.settings.repoList.showArchived)
-                        .onChange(of: self.session.settings.repoList.showArchived) { _, _ in
-                            self.appState.persistSettings()
-                            self.appState.requestRefresh(cancelInFlight: true)
-                        }
+                    Toggle(
+                        "Include forked repositories",
+                        isOn: self.setting(\.repoList.showForks, effects: .cancelInFlightRefresh)
+                    )
+                    Toggle(
+                        "Include archived repositories",
+                        isOn: self.setting(\.repoList.showArchived, effects: .cancelInFlightRefresh)
+                    )
                     Toggle("Show only my repositories", isOn: Binding(
                         get: { self.showOnlyMyRepos },
                         set: { self.toggleShowOnlyMyRepos($0) }
