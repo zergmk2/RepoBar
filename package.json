@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "format": "./Scripts/swiftformat.sh",
     "lint": "./Scripts/swiftlint.sh",
@@ -22,14 +25,14 @@
     "ghrest": "pnpm exec tsx Scripts/ghrest.ts"
   },
   "dependencies": {
-    "graphql": "^16.14.2"
+    "graphql": "^17.0.1"
   },
   "devDependencies": {
     "@octokit/request": "^10.0.10",
     "chalk": "^5.6.2",
-    "commander": "^14.0.3",
+    "commander": "^15.0.0",
     "dotenv-cli": "^11.0.0",
-    "ora": "^9.4.0",
+    "ora": "^9.4.1",
     "tsx": "^4.22.4",
     "zod": "^4.4.3"
   }
