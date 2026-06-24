@@ -108,7 +108,7 @@ public enum RepoSubmenuItemID: String, CaseIterable, Codable, Hashable, Sendable
 
     public var title: String {
         switch self {
-        case .openOnGitHub: "Open on GitHub"
+        case .openOnGitHub: "Open Repository"
         case .openInFinder: "Open in Finder"
         case .openInTerminal: "Open in Terminal"
         case .checkoutRepo: "Checkout Repo"

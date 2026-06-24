@@ -105,6 +105,19 @@ extension GlobalActivityScope: ExpressibleFromArgument {
     }
 }
 
+extension HostingProvider: ExpressibleFromArgument {
+    public init?(argument: String) {
+        switch argument.lowercased() {
+        case "github", "gh":
+            self = .github
+        case "gitlab", "gl":
+            self = .gitlab
+        default:
+            return nil
+        }
+    }
+}
+
 enum CLIError: Error {
     case notAuthenticated
     case openFailed

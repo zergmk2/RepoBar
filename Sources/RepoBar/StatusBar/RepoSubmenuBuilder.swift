@@ -16,6 +16,10 @@ struct RepoSubmenuRowIdentifier: Hashable {
 struct RepoSubmenuBuilder {
     let menuBuilder: StatusBarMenuBuilder
 
+    static func openProviderLabel(for appState: AppState) -> String {
+        appState.activeProvider.label
+    }
+
     private var appState: AppState {
         self.menuBuilder.appState
     }
@@ -85,8 +89,9 @@ struct RepoSubmenuBuilder {
         let local = repo.localStatus
         switch itemID {
         case .openOnGitHub:
+            let providerName = Self.openProviderLabel(for: self.appState)
             let openRow = RecentListSubmenuRowView(
-                title: "Open \(repo.title) in GitHub",
+                title: "Open \(repo.title) in \(providerName)",
                 systemImage: "arrow.up.right.square",
                 badgeText: nil,
                 onOpen: { [weak target] in
@@ -189,12 +194,13 @@ struct RepoSubmenuBuilder {
             )]
         case .ciRuns:
             let runBadge = repo.ciRunCount.flatMap { $0 > 0 ? String($0) : nil }
+            let openTitle = self.appState.activeProvider == .gitlab ? "Open CI/CD Jobs" : "Open Actions"
             return [self.recentListSubmenuItem(RecentListConfig(
                 title: "CI Runs",
                 systemImage: "bolt",
                 fullName: repo.title,
                 kind: .ciRuns,
-                openTitle: "Open Actions",
+                openTitle: openTitle,
                 openAction: #selector(self.target.openActions),
                 badgeText: runBadge
             ))]

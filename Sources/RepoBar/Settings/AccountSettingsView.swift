@@ -93,27 +93,29 @@ struct AccountSettingsView: View {
                     }
                     .padding(.vertical, 4)
                 default:
-                    Picker("Authentication", selection: self.$authMethod) {
-                        ForEach(AuthMethod.allCases, id: \.self) { method in
-                            Text(method.label).tag(method)
+                    if self.hostMode != .gitLab {
+                        Picker("Authentication", selection: self.$authMethod) {
+                            ForEach(AuthMethod.allCases, id: \.self) { method in
+                                Text(method.label).tag(method)
+                            }
                         }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
 
-                    if self.authMethod == .pat {
+                    if self.authMethod == .pat || self.hostMode == .gitLab {
                         LabeledContent("Token") {
-                            SecureField("ghp_...", text: self.$patInput)
+                            SecureField(self.hostMode == .gitLab ? "glpat-..." : "ghp_...", text: self.$patInput)
                                 .frame(minWidth: self.enterpriseFieldMinWidth)
                                 .layoutPriority(1)
                         }
-                        Text("Recommended for SAML SSO organizations. Required scopes: repo, read:org")
+                        Text(self.hostMode == .gitLab ? "Required scopes: read_user, read_api, read_repository" : "Recommended for SAML SSO organizations. Required scopes: repo, read:org")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Link("Create a token on GitHub", destination: self.createTokenURL())
+                        Link(self.hostMode == .gitLab ? "Create a token on GitLab" : "Create a token on GitHub", destination: self.createTokenURL())
                             .font(.caption)
-                        if self.hostMode == .enterprise {
-                            LabeledContent("Enterprise Base URL") {
-                                TextField("https://ghe.example.com", text: self.$enterpriseHost)
+                        if self.hostMode != .githubCom {
+                            LabeledContent(self.hostMode == .gitLab ? "GitLab Base URL" : "Enterprise Base URL") {
+                                TextField(self.hostMode == .gitLab ? "https://gitlab.example.com" : "https://ghe.example.com", text: self.$enterpriseHost)
                                     .frame(minWidth: self.enterpriseFieldMinWidth)
                                     .layoutPriority(1)
                             }
@@ -246,7 +248,10 @@ struct AccountSettingsView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
         .onAppear {
-            if let enterprise = self.session.settings.enterpriseHost {
+            if let active = self.session.settings.resolvedActiveAccount(), active.provider == .gitlab {
+                self.enterpriseHost = active.host.absoluteString
+                self.hostMode = .gitLab
+            } else if let enterprise = self.session.settings.enterpriseHost {
                 self.enterpriseHost = enterprise.absoluteString
                 self.hostMode = .enterprise
             }
@@ -260,7 +265,15 @@ struct AccountSettingsView: View {
                 }
             }
             self.authMethod = self.session.settings.authMethod
+            if self.hostMode == .gitLab {
+                self.authMethod = .pat
+            }
             self.monitoredOwnersDraft = ""
+        }
+        .onChange(of: self.hostMode) { _, newValue in
+            if newValue == .gitLab {
+                self.authMethod = .pat
+            }
         }
         .task(id: self.session.account) {
             guard case .loggedIn = self.session.account else {
@@ -377,7 +390,7 @@ struct AccountSettingsView: View {
         Task { @MainActor in
             self.session.account = .loggingIn
             self.session.lastError = nil
-            let enterpriseURL = self.hostMode == .enterprise ? self.normalizedEnterpriseHost() : nil
+            let enterpriseURL = self.hostMode == .enterprise ? self.normalizedHost(for: .github) : nil
 
             if self.hostMode == .enterprise, let enterpriseURL {
                 self.session.settings.enterpriseHost = enterpriseURL
@@ -442,21 +455,25 @@ struct AccountSettingsView: View {
             self.validationError = nil
 
             let host: URL
-            if self.hostMode == .enterprise {
-                guard let enterpriseURL = self.normalizedEnterpriseHost() else {
-                    self.validationError = "Enterprise Base URL must be a valid https:// URL with a trusted certificate."
+            if self.hostMode != .githubCom {
+                guard let enterpriseURL = self.normalizedHost(for: self.hostMode.provider) else {
+                    self.validationError = self.hostMode == .gitLab
+                        ? "GitLab Base URL must be a valid http:// or https:// URL."
+                        : "Enterprise Base URL must be a valid https:// URL with a trusted certificate."
                     self.isValidatingPAT = false
                     return
                 }
 
-                self.session.settings.enterpriseHost = enterpriseURL
                 host = enterpriseURL
+                if self.hostMode == .enterprise {
+                    self.session.settings.enterpriseHost = enterpriseURL
+                }
             } else {
                 self.session.settings.enterpriseHost = nil
                 host = URL(string: "https://github.com")!
             }
 
-            await self.appState.loginWithPAT(self.patInput, host: host)
+            await self.appState.loginWithPAT(self.patInput, host: host, provider: self.hostMode.provider)
             self.isValidatingPAT = false
 
             if case .loggedIn = self.session.account {
@@ -466,23 +483,21 @@ struct AccountSettingsView: View {
     }
 
     private func createTokenURL() -> URL {
-        let baseHost = self.hostMode == .enterprise
-            ? (self.normalizedEnterpriseHost()?.absoluteString ?? "https://github.com")
+        let baseHost = self.hostMode != .githubCom
+            ? (self.normalizedHost(for: self.hostMode.provider)?.absoluteString ?? "https://github.com")
             : "https://github.com"
-        return URL(string: "\(baseHost)/settings/tokens/new?scopes=repo,read:org&description=RepoBar")!
+        let scopes = self.hostMode == .gitLab ? "read_user,read_api,read_repository" : "repo,read:org"
+        return URL(string: "\(baseHost)/settings/tokens/new?scopes=\(scopes)&description=RepoBar")!
     }
 
-    private func normalizedEnterpriseHost() -> URL? {
+    private func normalizedHost(for provider: HostingProvider) -> URL? {
         guard !self.enterpriseHost.isEmpty else { return nil }
         guard var components = URLComponents(string: enterpriseHost) else { return nil }
 
         if components.scheme == nil { components.scheme = "https" }
-        guard components.scheme?.lowercased() == "https", components.host != nil else { return nil }
+        guard let raw = components.url else { return nil }
 
-        components.path = ""
-        components.query = nil
-        components.fragment = nil
-        return components.url
+        return try? HostingProviderHostNormalizer.normalize(raw, provider: provider)
     }
 
     private func validateToken() async {
@@ -494,7 +509,7 @@ struct AccountSettingsView: View {
         await self.logAuth("Auth: token check started")
         do {
             let user = try await self.withTimeout(seconds: self.tokenCheckTimeout) {
-                try await self.appState.github.currentUser()
+                try await self.appState.repositoryClient.currentUser()
             }
             self.session.account = .loggedIn(user)
             self.session.lastError = nil
@@ -601,6 +616,7 @@ private enum TokenValidationState: Equatable {
 private enum HostMode: String, CaseIterable {
     case githubCom
     case enterprise
+    case gitLab
 
     var label: String {
         switch self {
@@ -608,6 +624,17 @@ private enum HostMode: String, CaseIterable {
             "GitHub.com"
         case .enterprise:
             "Enterprise"
+        case .gitLab:
+            "GitLab"
+        }
+    }
+
+    var provider: HostingProvider {
+        switch self {
+        case .githubCom, .enterprise:
+            .github
+        case .gitLab:
+            .gitlab
         }
     }
 }

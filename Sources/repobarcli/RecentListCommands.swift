@@ -31,8 +31,8 @@ struct ReleasesCommand: CommanderRunnableCommand {
         if self.limit <= 0 { throw ValidationError("--limit must be greater than 0") }
         let repo = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let releases = try await context.client.recentReleases(owner: repo.owner, name: repo.name, limit: self.limit)
+        let context = try await makeProviderAuthenticatedClient()
+        let releases = try await context.repositoryClient.recentReleases(owner: repo.owner, name: repo.name, limit: self.limit)
 
         if self.output.jsonOutput {
             let output = RepoReleasesOutput(
@@ -82,8 +82,8 @@ struct CICommand: CommanderRunnableCommand {
         if self.limit <= 0 { throw ValidationError("--limit must be greater than 0") }
         let repo = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let runs = try await context.client.recentWorkflowRuns(owner: repo.owner, name: repo.name, limit: self.limit)
+        let context = try await makeProviderAuthenticatedClient()
+        let runs = try await context.repositoryClient.recentWorkflowRuns(owner: repo.owner, name: repo.name, limit: self.limit)
 
         if self.output.jsonOutput {
             let output = RepoWorkflowRunsOutput(
@@ -133,8 +133,8 @@ struct DiscussionsCommand: CommanderRunnableCommand {
         if self.limit <= 0 { throw ValidationError("--limit must be greater than 0") }
         let repo = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let discussions = try await context.client.recentDiscussions(owner: repo.owner, name: repo.name, limit: self.limit)
+        let context = try await makeProviderAuthenticatedClient()
+        let discussions = try await context.repositoryClient.recentDiscussions(owner: repo.owner, name: repo.name, limit: self.limit)
 
         if self.output.jsonOutput {
             let output = RepoDiscussionsOutput(
@@ -184,8 +184,8 @@ struct TagsCommand: CommanderRunnableCommand {
         if self.limit <= 0 { throw ValidationError("--limit must be greater than 0") }
         let repo = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let tags = try await context.client.recentTags(owner: repo.owner, name: repo.name, limit: self.limit)
+        let context = try await makeProviderAuthenticatedClient()
+        let tags = try await context.repositoryClient.recentTags(owner: repo.owner, name: repo.name, limit: self.limit)
 
         if self.output.jsonOutput {
             let output = RepoTagsOutput(
@@ -235,8 +235,8 @@ struct BranchesCommand: CommanderRunnableCommand {
         if self.limit <= 0 { throw ValidationError("--limit must be greater than 0") }
         let repo = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let branches = try await context.client.recentBranches(owner: repo.owner, name: repo.name, limit: self.limit)
+        let context = try await makeProviderAuthenticatedClient()
+        let branches = try await context.repositoryClient.recentBranches(owner: repo.owner, name: repo.name, limit: self.limit)
 
         if self.output.jsonOutput {
             let output = RepoBranchesOutput(
@@ -286,8 +286,8 @@ struct ContributorsCommand: CommanderRunnableCommand {
         if self.limit <= 0 { throw ValidationError("--limit must be greater than 0") }
         let repo = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let contributors = try await context.client.topContributors(owner: repo.owner, name: repo.name, limit: self.limit)
+        let context = try await makeProviderAuthenticatedClient()
+        let contributors = try await context.repositoryClient.topContributors(owner: repo.owner, name: repo.name, limit: self.limit)
 
         if self.output.jsonOutput {
             let output = RepoContributorsOutput(
@@ -343,11 +343,11 @@ struct CommitsCommand: CommanderRunnableCommand {
 
     mutating func run() async throws {
         if self.limit <= 0 { throw ValidationError("--limit must be greater than 0") }
-        let context = try await makeAuthenticatedClient()
+        let context = try await makeProviderAuthenticatedClient()
 
         if let target, target.contains("/") {
             let repo = try parseRepoName(target)
-            let commits = try await context.client.recentCommits(owner: repo.owner, name: repo.name, limit: self.limit)
+            let commits = try await context.repositoryClient.recentCommits(owner: repo.owner, name: repo.name, limit: self.limit)
 
             if self.output.jsonOutput {
                 let output = RepoCommitsOutput(
@@ -369,13 +369,17 @@ struct CommitsCommand: CommanderRunnableCommand {
             return
         }
 
+        guard let githubClient = context.githubClient else {
+            throw ValidationError("Global commits are only available for GitHub accounts")
+        }
+
         let scope = self.scope ?? context.settings.appearance.activityScope
         let login: String = if let resolved = self.login ?? target {
             resolved
         } else {
-            try await context.client.currentUser().username
+            try await githubClient.currentUser().username
         }
-        let commits = try await context.client.userCommitEvents(username: login, scope: scope, limit: self.limit)
+        let commits = try await githubClient.userCommitEvents(username: login, scope: scope, limit: self.limit)
 
         if self.output.jsonOutput {
             let output = GlobalCommitsOutput(
@@ -436,14 +440,14 @@ struct ActivityCommand: CommanderRunnableCommand {
 
     mutating func run() async throws {
         if self.limit <= 0 { throw ValidationError("--limit must be greater than 0") }
-        let context = try await makeAuthenticatedClient()
+        let context = try await makeProviderAuthenticatedClient()
 
         if let target, target.contains("/") {
             if self.includeRepos {
                 throw ValidationError("--include-repos is only available for global activity")
             }
             let repoID = try parseRepoName(target)
-            let repo = try await context.client.fullRepository(owner: repoID.owner, name: repoID.name)
+            let repo = try await context.repositoryClient.fullRepository(owner: repoID.owner, name: repoID.name)
             let events = Array(repo.activityEvents.prefix(self.limit))
 
             if self.output.jsonOutput {
@@ -465,16 +469,20 @@ struct ActivityCommand: CommanderRunnableCommand {
             return
         }
 
+        guard let githubClient = context.githubClient else {
+            throw ValidationError("Global activity is only available for GitHub accounts")
+        }
+
         let scope = self.scope ?? context.settings.appearance.activityScope
         let login: String = if let resolved = self.login ?? target {
             resolved
         } else {
-            try await context.client.currentUser().username
+            try await githubClient.currentUser().username
         }
-        let userEvents = try await context.client.userActivityEvents(username: login, scope: scope, limit: self.limit)
+        let userEvents = try await githubClient.userActivityEvents(username: login, scope: scope, limit: self.limit)
         let events: [ActivityEvent]
         if self.includeRepos {
-            let repositories = await (try? context.client.cachedRepositoryList(limit: nil)) ?? []
+            let repositories = await (try? githubClient.cachedRepositoryList(limit: nil)) ?? []
             events = GlobalActivityMerger.merge(
                 userEvents: userEvents,
                 repoEvents: GlobalActivityMerger.repositoryEvents(from: repositories),

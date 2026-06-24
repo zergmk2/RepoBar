@@ -74,7 +74,7 @@ struct AccountsListCommand: CommanderRunnableCommand {
         for account in settings.accounts {
             let marker = account.id == activeAccountID ? "*" : " "
             let method = account.authMethod.rawValue
-            print("\(marker) \(account.id)  [\(method)]  \(account.host.host ?? "github.com")")
+            print("\(marker) \(account.id)  [\(account.provider.rawValue)/\(method)]  \(account.host.host ?? "github.com")")
         }
     }
 }
@@ -146,6 +146,7 @@ struct AccountsRemoveCommand: CommanderRunnableCommand {
 
 struct AccountSummary: Encodable {
     let id: String
+    let provider: String
     let username: String
     let host: String
     let apiHost: String
@@ -154,6 +155,7 @@ struct AccountSummary: Encodable {
 
     init(from account: Account, active: Bool) {
         self.id = account.id
+        self.provider = account.provider.rawValue
         self.username = account.username
         self.host = account.host.absoluteString
         self.apiHost = account.apiHost.absoluteString

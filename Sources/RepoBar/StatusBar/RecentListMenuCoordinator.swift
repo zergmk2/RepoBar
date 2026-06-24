@@ -14,7 +14,10 @@ final class RecentListMenuCoordinator {
     let issueLabelChipLimit = AppLimits.RecentLists.issueLabelChipLimit
 
     var webURLBuilder: RepoWebURLBuilder {
-        RepoWebURLBuilder(host: self.appState.session.settings.githubHost)
+        RepoWebURLBuilder(
+            host: self.appState.session.settings.resolvedActiveAccount()?.host ?? self.appState.session.settings.githubHost,
+            provider: self.appState.activeProvider
+        )
     }
 
     init(
@@ -109,7 +112,7 @@ final class RecentListMenuCoordinator {
 
             do {
                 self.logger.debug("Prefetch start kind=\(String(describing: kind)) repo=\(fullName)")
-                _ = try await descriptor.load(cacheKey, owner, name, self.menuService.listLimit, cacheContext.github)
+                _ = try await descriptor.load(cacheKey, owner, name, self.menuService.listLimit, cacheContext.client)
                 self.logger.debug("Prefetch ok kind=\(String(describing: kind)) repo=\(fullName)")
             } catch {
                 self.logger.warning(
@@ -137,7 +140,7 @@ final class RecentListMenuCoordinator {
         }
         guard let (owner, name) = self.ownerAndName(from: context.fullName) else {
             let header = RecentMenuHeader(
-                title: "Open on GitHub",
+                title: "Open Repository",
                 action: #selector(StatusBarMenuManager.openRepo(_:)),
                 fullName: context.fullName,
                 systemImage: "folder"
@@ -190,7 +193,7 @@ final class RecentListMenuCoordinator {
         let startedAt = Date()
         self.logger.info("Recent list refresh start kind=\(String(describing: context.kind)) repo=\(context.fullName)")
         do {
-            let items = try await descriptor.load(cacheKey, owner, name, self.menuService.listLimit, cacheContext.github)
+            let items = try await descriptor.load(cacheKey, owner, name, self.menuService.listLimit, cacheContext.client)
             self.logger.info(
                 "Recent list refresh ok kind=\(String(describing: context.kind)) repo=\(context.fullName) count=\(items.count) dur=\(Self.formatDuration(since: startedAt))"
             )

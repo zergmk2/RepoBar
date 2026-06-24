@@ -98,8 +98,8 @@ struct RepoCommand: CommanderRunnableCommand {
     mutating func run() async throws {
         let repoID = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let client = context.client
+        let context = try await makeProviderAuthenticatedClient()
+        let client = context.repositoryClient
         let repo = try await client.fullRepository(owner: repoID.owner, name: repoID.name)
 
         if self.output.jsonOutput {
@@ -110,8 +110,8 @@ struct RepoCommand: CommanderRunnableCommand {
                 issues: repo.stats.openIssues,
                 pulls: repo.stats.openPulls,
                 latestRelease: self.includeRelease ? repo.latestRelease : nil,
-                traffic: self.includeTraffic ? repo.traffic : nil,
-                heatmap: self.includeHeatmap ? repo.heatmap : nil,
+                traffic: self.includeTraffic && context.provider == .github ? repo.traffic : nil,
+                heatmap: self.includeHeatmap && context.provider == .github ? repo.heatmap : nil,
                 activity: repo.latestActivity,
                 error: repo.error,
                 rateLimitedUntil: repo.rateLimitedUntil
@@ -124,7 +124,7 @@ struct RepoCommand: CommanderRunnableCommand {
         print("Repository: \(repo.fullName)")
         print("CI: \(repo.ciStatus.description)\(ciSuffix)")
         print("Issues: \(repo.stats.openIssues)")
-        print("PRs: \(repo.stats.openPulls)")
+        print("\(context.provider == .gitlab ? "MRs" : "PRs"): \(repo.stats.openPulls)")
 
         if self.includeRelease {
             if let release = repo.latestRelease {
@@ -138,14 +138,20 @@ struct RepoCommand: CommanderRunnableCommand {
         if self.includeTraffic {
             if let traffic = repo.traffic {
                 print("Traffic: \(traffic.uniqueVisitors) visitors, \(traffic.uniqueCloners) cloners")
+            } else if context.provider == .gitlab {
+                print("Traffic: unavailable for GitLab")
             } else {
                 print("Traffic: unavailable")
             }
         }
 
         if self.includeHeatmap {
-            let maxCount = repo.heatmap.map(\.count).max() ?? 0
-            print("Heatmap days: \(repo.heatmap.count), max \(maxCount)")
+            if context.provider == .gitlab {
+                print("Heatmap: unavailable for GitLab")
+            } else {
+                let maxCount = repo.heatmap.map(\.count).max() ?? 0
+                print("Heatmap days: \(repo.heatmap.count), max \(maxCount)")
+            }
         }
 
         if let activity = repo.latestActivity {
@@ -197,8 +203,8 @@ struct IssuesCommand: CommanderRunnableCommand {
         }
         let repoID = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let client = context.client
+        let context = try await makeProviderAuthenticatedClient()
+        let client = context.repositoryClient
         let issues = try await client.recentIssues(owner: repoID.owner, name: repoID.name, limit: self.limit)
 
         if self.output.jsonOutput {
@@ -268,8 +274,8 @@ struct PullsCommand: CommanderRunnableCommand {
         }
         let repoID = try requireRepoIdentifier(self.repoName)
 
-        let context = try await makeAuthenticatedClient()
-        let client = context.client
+        let context = try await makeProviderAuthenticatedClient()
+        let client = context.repositoryClient
         let pulls = try await client.recentPullRequests(owner: repoID.owner, name: repoID.name, limit: self.limit)
 
         if self.output.jsonOutput {
@@ -291,7 +297,7 @@ struct PullsCommand: CommanderRunnableCommand {
         }
 
         if self.output.plain == false, self.output.useColor {
-            print("Pull Requests: \(repoID.fullName)")
+            print("\(context.provider == .gitlab ? "Merge Requests" : "Pull Requests"): \(repoID.fullName)")
         }
         let lines = pullsTableLines(
             pulls,
@@ -324,7 +330,7 @@ struct RefreshCommand: CommanderRunnableCommand {
     }
 
     mutating func run() async throws {
-        let context = try await makeAuthenticatedClient()
+        let context = try await makeProviderAuthenticatedClient()
         let hidden = Set(context.settings.repoList.hiddenRepositories)
         let pinned = context.settings.repoList.pinnedRepositories.filter { !hidden.contains($0) }
 
@@ -337,7 +343,7 @@ struct RefreshCommand: CommanderRunnableCommand {
             return
         }
 
-        let results = try await refreshPinned(pinned, client: context.client)
+        let results = try await refreshPinned(pinned, client: context.repositoryClient)
 
         if self.output.jsonOutput {
             try printJSON(RefreshOutput(count: results.count, repositories: results))
@@ -354,40 +360,34 @@ struct RefreshCommand: CommanderRunnableCommand {
     }
 }
 
-private func refreshPinned(_ pinned: [String], client: GitHubClient) async throws -> [RefreshRepositoryOutput] {
-    try await withThrowingTaskGroup(of: RefreshRepositoryOutput.self) { group in
-        for name in pinned {
-            group.addTask {
-                let parsed: RepoIdentifier
-                do {
-                    parsed = try parseRepoName(name)
-                } catch {
-                    return RefreshRepositoryOutput(fullName: name, error: "Invalid repository name", rateLimitedUntil: nil)
-                }
-
-                do {
-                    let repo = try await client.fullRepository(owner: parsed.owner, name: parsed.name)
-                    return RefreshRepositoryOutput(
-                        fullName: repo.fullName,
-                        error: repo.error,
-                        rateLimitedUntil: repo.rateLimitedUntil
-                    )
-                } catch {
-                    return RefreshRepositoryOutput(
-                        fullName: name,
-                        error: error.userFacingMessage,
-                        rateLimitedUntil: nil
-                    )
-                }
-            }
+private func refreshPinned(_ pinned: [String], client: any RepositoryClient) async throws -> [RefreshRepositoryOutput] {
+    var results: [RefreshRepositoryOutput] = []
+    results.reserveCapacity(pinned.count)
+    for name in pinned {
+        let parsed: RepoIdentifier
+        do {
+            parsed = try parseRepoName(name)
+        } catch {
+            results.append(RefreshRepositoryOutput(fullName: name, error: "Invalid repository name", rateLimitedUntil: nil))
+            continue
         }
 
-        var results: [RefreshRepositoryOutput] = []
-        for try await result in group {
-            results.append(result)
+        do {
+            let repo = try await client.fullRepository(owner: parsed.owner, name: parsed.name)
+            results.append(RefreshRepositoryOutput(
+                fullName: repo.fullName,
+                error: repo.error,
+                rateLimitedUntil: repo.rateLimitedUntil
+            ))
+        } catch {
+            results.append(RefreshRepositoryOutput(
+                fullName: name,
+                error: error.userFacingMessage,
+                rateLimitedUntil: nil
+            ))
         }
-        return results.sorted { $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending }
     }
+    return results.sorted { $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending }
 }
 
 private struct RepoIssuesOutput: Encodable {

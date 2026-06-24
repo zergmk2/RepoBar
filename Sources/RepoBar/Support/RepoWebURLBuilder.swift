@@ -1,13 +1,26 @@
 import Foundation
+import RepoBarCore
 
 struct RepoWebURLBuilder {
     let host: URL
+    let provider: HostingProvider
+
+    init(host: URL, provider: HostingProvider = .github) {
+        self.host = host
+        self.provider = provider
+    }
 
     func repoURL(fullName: String) -> URL? {
         let parts = fullName.split(separator: "/", omittingEmptySubsequences: false)
-        guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty }) else { return nil }
+        guard parts.allSatisfy({ !$0.isEmpty }) else { return nil }
+        switch self.provider {
+        case .github:
+            guard parts.count == 2 else { return nil }
+        case .gitlab:
+            guard parts.count >= 2 else { return nil }
+        }
 
-        return self.repoPathURL(components: [String(parts[0]), String(parts[1])])
+        return self.repoPathURL(components: parts.map(String.init))
     }
 
     func repoPathURL(fullName: String, path: String) -> URL? {
@@ -25,6 +38,15 @@ struct RepoWebURLBuilder {
 
     func actionsURL(fullName: String) -> URL? {
         self.repoPathURL(fullName: fullName, components: ["actions"])
+    }
+
+    func ciRunsURL(fullName: String) -> URL? {
+        switch self.provider {
+        case .github:
+            self.actionsURL(fullName: fullName)
+        case .gitlab:
+            self.repoPathURL(fullName: fullName, components: ["-", "jobs"])
+        }
     }
 
     func discussionsURL(fullName: String) -> URL? {

@@ -21,6 +21,11 @@ struct WorkflowRunMenuItemView: View {
                     .lineLimit(2)
 
                 HStack(spacing: 6) {
+                    Text(self.statusLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+
                     if let branch = self.summary.branch, branch.isEmpty == false {
                         Text(branch)
                             .font(.caption)
@@ -56,6 +61,31 @@ struct WorkflowRunMenuItemView: View {
 
     private var statusColor: Color {
         MenuCIBadge.dotColor(for: self.summary.status, isLightAppearance: self.isLightAppearance, isHighlighted: self.isHighlighted)
+    }
+
+    var statusLabel: String {
+        let label = if let conclusion = summary.conclusion?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       conclusion.isEmpty == false
+        {
+            conclusion
+        } else {
+            switch self.summary.status {
+            case .passing:
+                "passing"
+            case .failing:
+                "failing"
+            case .pending:
+                "pending"
+            case .unknown:
+                "unknown"
+            }
+        }
+
+        if let runNumber = self.summary.runNumber {
+            return "#\(runNumber) \(label)"
+        }
+
+        return label
     }
 
     private var isLightAppearance: Bool {

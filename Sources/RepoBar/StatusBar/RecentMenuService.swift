@@ -8,7 +8,8 @@ final class RecentMenuService {
     let cacheTTL: TimeInterval
     let loadTimeout: TimeInterval
 
-    private let github: @MainActor () -> GitHubClient
+    private let client: @MainActor () -> any RepositoryServiceClient
+    private let provider: @MainActor () -> HostingProvider
     private let cacheNamespace: @MainActor () -> String
     private let recentIssuesCache = RecentListCache<RepoIssueSummary>()
     private let recentPullRequestsCache = RecentListCache<RepoPullRequestSummary>()
@@ -22,14 +23,16 @@ final class RecentMenuService {
     private var recentCommitCounts: [String: Int] = [:]
 
     init(
-        github: @escaping @MainActor () -> GitHubClient,
+        client: @escaping @MainActor () -> any RepositoryServiceClient,
+        provider: @escaping @MainActor () -> HostingProvider,
         cacheNamespace: @escaping @MainActor () -> String,
         listLimit: Int = AppLimits.RecentLists.limit,
         previewLimit: Int = AppLimits.RecentLists.previewLimit,
         cacheTTL: TimeInterval = AppLimits.RecentLists.cacheTTL,
         loadTimeout: TimeInterval = AppLimits.RecentLists.loadTimeout
     ) {
-        self.github = github
+        self.client = client
+        self.provider = provider
         self.cacheNamespace = cacheNamespace
         self.listLimit = listLimit
         self.previewLimit = previewLimit
@@ -39,7 +42,8 @@ final class RecentMenuService {
 
     convenience init(appState: AppState) {
         self.init(
-            github: { [appState] in appState.github },
+            client: { [appState] in appState.repositoryClient },
+            provider: { [appState] in appState.activeProvider },
             cacheNamespace: { [appState] in appState.session.settings.resolvedActiveAccount()?.id ?? "legacy" }
         )
     }
@@ -48,8 +52,8 @@ final class RecentMenuService {
         "\(self.cacheNamespace())|\(fullName)"
     }
 
-    func cacheContext(fullName: String) -> (key: String, github: GitHubClient) {
-        (self.cacheKey(fullName: fullName), self.github())
+    func cacheContext(fullName: String) -> (key: String, client: any RepositoryServiceClient) {
+        (self.cacheKey(fullName: fullName), self.client())
     }
 
     func descriptor(for kind: RepoRecentMenuKind) -> RecentMenuDescriptor? {
@@ -58,6 +62,7 @@ final class RecentMenuService {
 
     func descriptors() -> [RepoRecentMenuKind: RecentMenuDescriptor] {
         let commitDescriptor = self.commitDescriptor()
+        let ciHeaderTitle = self.provider() == .gitlab ? "Open CI/CD Jobs" : "Open Actions"
 
         let descriptors: [RecentMenuDescriptor] = [
             commitDescriptor,
@@ -72,8 +77,8 @@ final class RecentMenuService {
                     if case let .issues(items) = boxed { return items }
                     return nil
                 },
-                fetch: { github, owner, name, limit in
-                    try await github.recentIssues(owner: owner, name: name, limit: limit)
+                fetch: { client, owner, name, limit in
+                    try await client.recentIssues(owner: owner, name: name, limit: limit)
                 }
             )),
             self.makeDescriptor(RecentMenuDescriptorConfig(
@@ -87,8 +92,8 @@ final class RecentMenuService {
                     if case let .pullRequests(items) = boxed { return items }
                     return nil
                 },
-                fetch: { github, owner, name, limit in
-                    try await github.recentPullRequests(owner: owner, name: name, limit: limit)
+                fetch: { client, owner, name, limit in
+                    try await client.recentPullRequests(owner: owner, name: name, limit: limit)
                 }
             )),
             self.makeDescriptor(RecentMenuDescriptorConfig(
@@ -102,13 +107,13 @@ final class RecentMenuService {
                     if case let .releases(items) = boxed { return items }
                     return nil
                 },
-                fetch: { github, owner, name, limit in
-                    try await github.recentReleases(owner: owner, name: name, limit: limit)
+                fetch: { client, owner, name, limit in
+                    try await client.recentReleases(owner: owner, name: name, limit: limit)
                 }
             )),
             self.makeDescriptor(RecentMenuDescriptorConfig(
                 kind: .ciRuns,
-                headerTitle: "Open Actions",
+                headerTitle: ciHeaderTitle,
                 headerIcon: "bolt",
                 emptyTitle: "No CI runs",
                 cache: self.recentWorkflowRunsCache,
@@ -117,8 +122,8 @@ final class RecentMenuService {
                     if case let .workflowRuns(items) = boxed { return items }
                     return nil
                 },
-                fetch: { github, owner, name, limit in
-                    try await github.recentWorkflowRuns(owner: owner, name: name, limit: limit)
+                fetch: { client, owner, name, limit in
+                    try await client.recentWorkflowRuns(owner: owner, name: name, limit: limit)
                 }
             )),
             self.makeDescriptor(RecentMenuDescriptorConfig(
@@ -132,8 +137,8 @@ final class RecentMenuService {
                     if case let .discussions(items) = boxed { return items }
                     return nil
                 },
-                fetch: { github, owner, name, limit in
-                    try await github.recentDiscussions(owner: owner, name: name, limit: limit)
+                fetch: { client, owner, name, limit in
+                    try await client.recentDiscussions(owner: owner, name: name, limit: limit)
                 }
             )),
             self.makeDescriptor(RecentMenuDescriptorConfig(
@@ -147,8 +152,8 @@ final class RecentMenuService {
                     if case let .tags(items) = boxed { return items }
                     return nil
                 },
-                fetch: { github, owner, name, limit in
-                    try await github.recentTags(owner: owner, name: name, limit: limit)
+                fetch: { client, owner, name, limit in
+                    try await client.recentTags(owner: owner, name: name, limit: limit)
                 }
             )),
             self.makeDescriptor(RecentMenuDescriptorConfig(
@@ -162,8 +167,8 @@ final class RecentMenuService {
                     if case let .branches(items) = boxed { return items }
                     return nil
                 },
-                fetch: { github, owner, name, limit in
-                    try await github.recentBranches(owner: owner, name: name, limit: limit)
+                fetch: { client, owner, name, limit in
+                    try await client.recentBranches(owner: owner, name: name, limit: limit)
                 }
             )),
             self.makeDescriptor(RecentMenuDescriptorConfig(
@@ -177,8 +182,8 @@ final class RecentMenuService {
                     if case let .contributors(items) = boxed { return items }
                     return nil
                 },
-                fetch: { github, owner, name, limit in
-                    try await github.topContributors(owner: owner, name: name, limit: limit)
+                fetch: { client, owner, name, limit in
+                    try await client.topContributors(owner: owner, name: name, limit: limit)
                 }
             ))
         ]
@@ -225,9 +230,9 @@ final class RecentMenuService {
             needsRefresh: { key, now, ttl in
                 self.recentCommitsCache.needsRefresh(for: key, now: now, maxAge: ttl)
             },
-            load: { key, owner, name, limit, github in
+            load: { key, owner, name, limit, client in
                 let task = self.recentCommitsCache.task(for: key) {
-                    let list = try await github.recentCommits(owner: owner, name: name, limit: limit)
+                    let list = try await client.recentCommits(owner: owner, name: name, limit: limit)
                     await MainActor.run {
                         self.recentCommitCounts[key] = list.totalCount ?? list.items.count
                     }
@@ -263,9 +268,9 @@ final class RecentMenuService {
             needsRefresh: { key, now, ttl in
                 config.cache.needsRefresh(for: key, now: now, maxAge: ttl)
             },
-            load: { key, owner, name, limit, github in
+            load: { key, owner, name, limit, client in
                 let task = config.cache.task(for: key) {
-                    try await fetch(github, owner, name, limit)
+                    try await fetch(client, owner, name, limit)
                 }
                 defer { config.cache.clearInflight(for: key) }
                 let items = try await AsyncTimeout.value(within: self.loadTimeout, task: task)
@@ -284,7 +289,7 @@ struct RecentMenuDescriptorConfig<Item: Sendable> {
     let cache: RecentListCache<Item>
     let wrap: ([Item]) -> RecentMenuItems
     let unwrap: (RecentMenuItems) -> [Item]?
-    let fetch: @Sendable (GitHubClient, String, String, Int) async throws -> [Item]
+    let fetch: @Sendable (any RepositoryServiceClient, String, String, Int) async throws -> [Item]
 }
 
 struct RecentMenuDescriptor {
@@ -295,7 +300,7 @@ struct RecentMenuDescriptor {
     let cached: (String, Date, TimeInterval) -> RecentMenuItems?
     let stale: (String) -> RecentMenuItems?
     let needsRefresh: (String, Date, TimeInterval) -> Bool
-    let load: @MainActor (String, String, String, Int, GitHubClient) async throws -> RecentMenuItems
+    let load: @MainActor (String, String, String, Int, any RepositoryServiceClient) async throws -> RecentMenuItems
 }
 
 enum RecentMenuItems {

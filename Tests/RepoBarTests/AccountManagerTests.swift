@@ -79,6 +79,28 @@ struct AccountManagerTests {
         #expect(try await manager.currentAccessToken(accountID: account.id) == "pat-token")
     }
 
+    @Test
+    func `gitlab account uses provider client without github active client`() async throws {
+        let service = "com.steipete.repobar.account-manager-tests.\(UUID().uuidString)"
+        let store = TokenStore(service: service)
+        let account = Account(
+            provider: .gitlab,
+            username: "alice",
+            host: try #require(URL(string: "https://gitlab.example.com")),
+            authMethod: .pat
+        )
+        defer { store.clear(accountID: account.id) }
+        try store.savePAT("gitlab-token", accountID: account.id)
+        let manager = AccountManager(tokenStore: store)
+
+        await manager.bootstrap(from: Self.settings(account: account))
+
+        #expect(manager.activeAccount()?.provider == .gitlab)
+        #expect(manager.activeClient() == nil)
+        #expect(manager.activeProviderClient() != nil)
+        #expect(try await manager.currentAccessToken(accountID: account.id) == "gitlab-token")
+    }
+
     private static func makeStoreAndAccount(authMethod: AuthMethod) throws -> (TokenStore, Account) {
         let service = "com.steipete.repobar.account-manager-tests.\(UUID().uuidString)"
         let store = TokenStore(service: service)

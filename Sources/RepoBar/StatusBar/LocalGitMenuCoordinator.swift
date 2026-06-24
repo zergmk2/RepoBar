@@ -13,7 +13,10 @@ final class LocalGitMenuCoordinator {
     private var localBranchMenus: [ObjectIdentifier: LocalGitMenuEntry] = [:]
     private var localWorktreeMenus: [ObjectIdentifier: LocalGitMenuEntry] = [:]
     private var webURLBuilder: RepoWebURLBuilder {
-        RepoWebURLBuilder(host: self.appState.session.settings.githubHost)
+        RepoWebURLBuilder(
+            host: self.appState.session.settings.resolvedActiveAccount()?.host ?? self.appState.session.settings.githubHost,
+            provider: self.appState.activeProvider
+        )
     }
 
     init(
@@ -303,7 +306,7 @@ final class LocalGitMenuCoordinator {
         guard needsRefresh else { return }
 
         do {
-            let items = try await descriptor.load(cacheKey, owner, name, self.recentMenuService.listLimit, cacheContext.github)
+            let items = try await descriptor.load(cacheKey, owner, name, self.recentMenuService.listLimit, cacheContext.client)
             let branches = self.remoteBranches(from: items)
             self.populateCombinedBranchMenu(
                 menu: menu,

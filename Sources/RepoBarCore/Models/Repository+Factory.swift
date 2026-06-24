@@ -1,6 +1,34 @@
 import Foundation
 
 extension Repository {
+    public static func from(gitLabProject item: GitLabProjectItem) -> Repository {
+        Repository(
+            id: "gitlab:\(item.id)",
+            name: item.path,
+            owner: item.namespace.fullPath,
+            description: item.description,
+            language: nil,
+            topics: item.topics ?? item.tagList ?? [],
+            isFork: false,
+            isArchived: item.archived,
+            viewerCanRead: true,
+            sortOrder: nil,
+            error: nil,
+            rateLimitedUntil: nil,
+            ciStatus: .unknown,
+            ciRunCount: nil,
+            openIssues: 0,
+            openPulls: 0,
+            stars: item.starCount,
+            forks: item.forksCount,
+            pushedAt: item.lastActivityAt,
+            latestRelease: nil,
+            latestActivity: nil,
+            traffic: nil,
+            heatmap: []
+        )
+    }
+
     static func from(
         item: RepoItem,
         openPulls: Int = 0,

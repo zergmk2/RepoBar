@@ -34,24 +34,26 @@ extension AppState {
     }
 
     /// Authenticates with a Personal Access Token.
-    func loginWithPAT(_ pat: String, host: URL) async {
+    func loginWithPAT(_ pat: String, host: URL, provider: HostingProvider = .github) async {
         self.session.account = .loggingIn
         self.session.lastError = nil
-        self.session.settings.githubHost = host
-        if host.host?.lowercased() == "github.com" {
-            self.session.settings.enterpriseHost = nil
-        } else {
-            self.session.settings.enterpriseHost = host
+        if provider == .github {
+            self.session.settings.githubHost = host
+            if host.host?.lowercased() == "github.com" {
+                self.session.settings.enterpriseHost = nil
+            } else {
+                self.session.settings.enterpriseHost = host
+            }
         }
 
         do {
-            let user = try await self.patAuth.authenticate(pat: pat, host: host)
+            let user = try await self.patAuth.authenticate(provider: provider, pat: pat, host: host)
             self.session.settings.authMethod = .pat
             self.session.hasStoredTokens = true
             self.session.account = .loggedIn(user)
             self.session.lastError = nil
             self.persistSettings()
-            await self.recordAccountForLogin(user: user, host: host, method: .pat, persistPAT: pat)
+            await self.recordAccountForLogin(user: user, provider: provider, host: host, method: .pat, persistPAT: pat)
             await self.refresh()
         } catch {
             self.session.account = .loggedOut

@@ -120,6 +120,7 @@ extension AppState {
     /// the account-scoped keys so the per-account refresher can take over.
     func recordAccountForLogin(
         user: UserIdentity,
+        provider: HostingProvider = .github,
         host: URL,
         method: AuthMethod,
         persistPAT pat: String? = nil
@@ -127,6 +128,7 @@ extension AppState {
         guard user.username.isEmpty == false else { return }
 
         let account = Account(
+            provider: provider,
             username: user.username,
             host: host,
             authMethod: method,
@@ -159,7 +161,9 @@ extension AppState {
         }
         self.session.settings.activeAccountID = account.id
         self.mirrorActiveAccountIntoSettings(account)
-        self.mirrorActiveAccountCredentialsToLegacy(account)
+        if account.provider == .github {
+            self.mirrorActiveAccountCredentialsToLegacy(account)
+        }
         self.session.activeAccountID = self.accountManager.activeAccountID
         await self.syncPrimaryGitHubClientToActiveAccount()
         self.session.accountSessions = self.session.settings.accounts.map { existing in
@@ -216,13 +220,20 @@ extension AppState {
 
     private func syncPrimaryGitHubClientToActiveAccount() async {
         if let active = self.accountManager.activeAccount() {
-            if let client = self.accountManager.activeClient() {
+            if let providerClient = self.accountManager.activeProviderClient() {
+                self.repositoryClient = providerClient
+            }
+            if active.provider == .github, let client = self.accountManager.activeClient() {
                 self.github = client
                 await self.github.setAPIHost(active.apiHost)
                 return
             }
+            self.github = self.legacyGitHub
+            await self.github.setAPIHost(self.defaultAPIHost)
+            return
         }
         self.github = self.legacyGitHub
+        self.repositoryClient = self.legacyGitHub
         await self.github.setAPIHost(self.defaultAPIHost)
     }
 
@@ -231,12 +242,17 @@ extension AppState {
             self.session.account = .loggedOut
             return
         }
-        if let user = try? await self.github.currentUser() {
+        if let user = try? await self.repositoryClient.currentUser() {
             self.session.account = .loggedIn(user)
         }
     }
 
     private func mirrorActiveAccountIntoSettings(_ account: Account) {
+        guard account.provider == .github else {
+            self.session.settings.authMethod = account.authMethod
+            self.session.settings.loopbackPort = account.loopbackPort
+            return
+        }
         self.session.settings.githubHost = account.host
         self.session.settings.enterpriseHost = account.host.host?.lowercased() == "github.com" ? nil : account.host
         self.session.settings.authMethod = account.authMethod

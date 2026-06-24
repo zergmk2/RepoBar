@@ -13,6 +13,7 @@ final class AppState {
     let patAuth = PATAuthenticator()
     let legacyGitHub: GitHubClient
     var github: GitHubClient
+    var repositoryClient: any RepositoryServiceClient
     let accountManager = AccountManager()
     let refreshScheduler = RefreshScheduler()
     let settingsStore: SettingsStore
@@ -47,6 +48,7 @@ final class AppState {
         let legacyGitHub = GitHubClient()
         self.legacyGitHub = legacyGitHub
         self.github = legacyGitHub
+        self.repositoryClient = legacyGitHub
         self.settingsStore = settingsStore
         self.session.settings = self.settingsStore.load()
         self.reloadRateLimitCacheSummary()
@@ -181,6 +183,10 @@ final class AppState {
     func diagnostics() async -> DiagnosticsSummary {
         await self.refreshRateLimitDisplayState()
         return self.session.rateLimitDiagnostics
+    }
+
+    var activeProvider: HostingProvider {
+        self.session.settings.resolvedActiveAccount()?.provider ?? .github
     }
 
     func refreshRateLimitDisplayState() async {

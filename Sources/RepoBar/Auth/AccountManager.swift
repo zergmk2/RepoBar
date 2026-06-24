@@ -2,16 +2,17 @@ import Foundation
 import OSLog
 import RepoBarCore
 
-/// Owns per-account `GitHubClient` instances and their auth state.
+/// Owns per-account provider clients and their auth state.
 ///
 /// Bootstrapped from `UserSettings.accounts`. Each account gets its own
-/// `GitHubClient` with an `apiHost` and a token provider closure that reads
+/// API client with an `apiHost` and a token provider closure that reads
 /// from the account-scoped `TokenStore` APIs (Phase 1).
 @MainActor
 final class AccountManager {
     private(set) var accounts: [Account] = []
     private(set) var activeAccountID: String?
     private var clients: [String: GitHubClient] = [:]
+    private var providerClients: [String: any RepositoryServiceClient] = [:]
     private let tokenStore: TokenStore
     private let oauthRefresher: OAuthTokenRefresher
     private let signposter = OSSignposter(subsystem: "com.steipete.repobar", category: "account-manager")
@@ -32,6 +33,7 @@ final class AccountManager {
         self.accounts = settings.accounts
         self.activeAccountID = settings.resolvedActiveAccount()?.id ?? settings.accounts.first?.id
         self.clients.removeAll(keepingCapacity: true)
+        self.providerClients.removeAll(keepingCapacity: true)
         for account in self.accounts {
             await self.makeClient(for: account)
         }
@@ -47,6 +49,12 @@ final class AccountManager {
         guard let activeAccountID else { return nil }
 
         return self.clients[activeAccountID]
+    }
+
+    func activeProviderClient() -> (any RepositoryServiceClient)? {
+        guard let activeAccountID else { return nil }
+
+        return self.providerClients[activeAccountID]
     }
 
     func activeAccount() -> Account? {
@@ -92,6 +100,7 @@ final class AccountManager {
     func remove(accountID: String) async {
         self.tokenStore.clear(accountID: accountID)
         self.clients.removeValue(forKey: accountID)
+        self.providerClients.removeValue(forKey: accountID)
         self.accounts.removeAll(where: { $0.id == accountID })
         if self.activeAccountID == accountID {
             self.activeAccountID = self.accounts.first?.id
@@ -162,6 +171,15 @@ final class AccountManager {
     // MARK: - Private
 
     private func makeClient(for account: Account) async {
+        switch account.provider {
+        case .github:
+            await self.makeGitHubClient(for: account)
+        case .gitlab:
+            self.makeGitLabClient(for: account)
+        }
+    }
+
+    private func makeGitHubClient(for account: Account) async {
         let client = GitHubClient(accountID: account.id)
         await client.setAPIHost(account.apiHost)
         let accountID = account.id
@@ -184,6 +202,25 @@ final class AccountManager {
             return nil
         }
         self.clients[account.id] = client
+        self.providerClients[account.id] = client
+    }
+
+    private func makeGitLabClient(for account: Account) {
+        let accountID = account.id
+        do {
+            let client = try GitLabClient(apiHost: account.apiHost) { [tokenStore] in
+                if let pat = try? tokenStore.loadPAT(accountID: accountID) {
+                    return pat
+                }
+                if let tokens = try? tokenStore.loadTokens(accountID: accountID) {
+                    return tokens.accessToken
+                }
+                throw URLError(.userAuthenticationRequired)
+            }
+            self.providerClients[account.id] = client
+        } catch {
+            self.providerClients.removeValue(forKey: account.id)
+        }
     }
 
     private func refreshOAuth(account: Account, force: Bool) async throws -> OAuthTokens? {

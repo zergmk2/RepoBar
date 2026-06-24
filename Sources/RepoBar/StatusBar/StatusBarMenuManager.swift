@@ -59,7 +59,10 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
         }
     )
     var webURLBuilder: RepoWebURLBuilder {
-        RepoWebURLBuilder(host: self.appState.session.settings.githubHost)
+        RepoWebURLBuilder(
+            host: self.appState.session.settings.resolvedActiveAccount()?.host ?? self.appState.session.settings.githubHost,
+            provider: self.appState.activeProvider
+        )
     }
 
     private weak var checkoutProgressWindow: NSWindow?

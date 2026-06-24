@@ -125,7 +125,7 @@ struct RepoSettingsView: View {
             .layoutPriority(1)
             .onDeleteCommand { self.deleteSelection() }
             .contextMenu(forSelectionType: String.self) { selection in
-                Button("Open in GitHub") { self.openInGitHub(selection: selection) }
+                Button("Open in \(self.appState.activeProvider.label)") { self.openInGitHub(selection: selection) }
                 Divider()
                 Button("Pin") { Task { await self.bulkSet(selection, to: .pinned) } }
                 Button("Hide") { Task { await self.bulkSet(selection, to: .hidden) } }
@@ -161,7 +161,7 @@ struct RepoSettingsView: View {
         .padding()
         .onAppear {
             self.rebuildRows()
-            Task { try? await self.appState.github.prefetchedRepositories() }
+            Task { _ = try? await self.appState.repositoryClient.repositoryList(limit: AppLimits.Autocomplete.settingsSearchLimit) }
         }
         .onChange(of: self.searchQuery) { _, _ in self.applySearch() }
         .onChange(of: self.sortOrder) { _, _ in self.applySearch() }
@@ -183,7 +183,10 @@ struct RepoSettingsView: View {
     }
 
     private var webURLBuilder: RepoWebURLBuilder {
-        RepoWebURLBuilder(host: self.session.settings.githubHost)
+        RepoWebURLBuilder(
+            host: self.session.settings.resolvedActiveAccount()?.host ?? self.session.settings.githubHost,
+            provider: self.appState.activeProvider
+        )
     }
 
     private func openInGitHub(selection: Set<String>) {
@@ -415,7 +418,7 @@ private struct RepoInputRow<Accessory: View>: View {
         let includeForks = await MainActor.run { self.session.settings.repoList.showForks }
         let includeArchived = await MainActor.run { self.session.settings.repoList.showArchived }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let prefetched = try? await self.appState.github.prefetchedRepositories()
+        let prefetched = try? await self.appState.repositoryClient.repositoryList(limit: nil)
 
         let filteredPrefetched = prefetched.map {
             RepositoryFilter.apply($0, includeForks: includeForks, includeArchived: includeArchived)

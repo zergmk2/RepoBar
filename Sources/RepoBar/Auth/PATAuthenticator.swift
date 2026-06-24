@@ -40,17 +40,27 @@ public final class PATAuthenticator {
         self.session = session
     }
 
-    /// Validates PAT via GET /user, stores on success, returns UserIdentity.
     public func authenticate(pat: String, host: URL) async throws -> UserIdentity {
+        try await self.authenticate(provider: .github, pat: pat, host: host)
+    }
+
+    /// Validates PAT via provider user endpoint, stores on success, returns UserIdentity.
+    public func authenticate(provider: HostingProvider, pat: String, host: URL) async throws -> UserIdentity {
         let signpost = self.signposter.beginInterval("authenticate")
         defer { self.signposter.endInterval("authenticate", signpost) }
 
-        let apiHost = Self.apiHost(for: host)
+        let apiHost = Self.apiHost(provider: provider, for: host)
         let userURL = apiHost.appendingPathComponent("user")
 
         var request = URLRequest(url: userURL)
-        request.setValue("Bearer \(pat)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        switch provider {
+        case .github:
+            request.setValue("Bearer \(pat)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        case .gitlab:
+            request.setValue(pat, forHTTPHeaderField: "PRIVATE-TOKEN")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
 
         let (data, response): (Data, URLResponse)
         do {
@@ -74,13 +84,22 @@ public final class PATAuthenticator {
             throw PATAuthError.invalidResponse
         }
 
-        struct UserResponse: Decodable {
+        struct GitHubUserResponse: Decodable {
             let login: String
         }
 
-        let user: UserResponse
+        struct GitLabUserResponse: Decodable {
+            let username: String
+        }
+
+        let username: String
         do {
-            user = try JSONDecoder().decode(UserResponse.self, from: data)
+            switch provider {
+            case .github:
+                username = try JSONDecoder().decode(GitHubUserResponse.self, from: data).login
+            case .gitlab:
+                username = try JSONDecoder().decode(GitLabUserResponse.self, from: data).username
+            }
         } catch {
             throw PATAuthError.invalidResponse
         }
@@ -90,7 +109,7 @@ public final class PATAuthenticator {
         self.hasLoadedPAT = true
         await DiagnosticsLogger.shared.message("PAT login succeeded; token stored.")
 
-        return UserIdentity(username: user.login, host: host)
+        return UserIdentity(username: username, host: host)
     }
 
     /// Loads the stored PAT from Keychain.
@@ -111,7 +130,16 @@ public final class PATAuthenticator {
     }
 
     /// Converts a GitHub host URL to its API endpoint.
-    private static func apiHost(for host: URL) -> URL {
+    private static func apiHost(provider: HostingProvider, for host: URL) -> URL {
+        switch provider {
+        case .github:
+            self.gitHubAPIHost(for: host)
+        case .gitlab:
+            Account.deriveAPIHost(provider: .gitlab, for: host)
+        }
+    }
+
+    private static func gitHubAPIHost(for host: URL) -> URL {
         let hostString = host.host ?? "github.com"
         if hostString == "github.com" {
             return URL(string: "https://api.github.com")!

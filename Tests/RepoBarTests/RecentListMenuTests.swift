@@ -89,6 +89,46 @@ struct RecentListMenuTests {
 
     @MainActor
     @Test
+    func `gitlab active account drives repository browser URLs`() throws {
+        let appState = AppState()
+        let account = Account(
+            provider: .gitlab,
+            username: "alice",
+            host: try #require(URL(string: "http://gitlab.example.com:1180")),
+            authMethod: .pat
+        )
+        appState.session.settings.accounts = [account]
+        appState.session.settings.activeAccountID = account.id
+        let manager = StatusBarMenuManager(appState: appState)
+
+        #expect(
+            manager.webURLBuilder.repoURL(fullName: "platform/backend/widget")?.absoluteString ==
+                "http://gitlab.example.com:1180/platform/backend/widget"
+        )
+        #expect(
+            manager.webURLBuilder.ciRunsURL(fullName: "platform/backend/widget")?.absoluteString ==
+                "http://gitlab.example.com:1180/platform/backend/widget/-/jobs"
+        )
+    }
+
+    @MainActor
+    @Test
+    func `gitlab repo submenu uses gitlab open label`() throws {
+        let appState = AppState()
+        let account = Account(
+            provider: .gitlab,
+            username: "alice",
+            host: try #require(URL(string: "https://gitlab.example.com")),
+            authMethod: .pat
+        )
+        appState.session.settings.accounts = [account]
+        appState.session.settings.activeAccountID = account.id
+
+        #expect(RepoSubmenuBuilder.openProviderLabel(for: appState) == "GitLab")
+    }
+
+    @MainActor
+    @Test
     func `multi reference menu offers issue navigator action at end`() throws {
         let appState = AppState()
         let manager = StatusBarMenuManager(appState: appState)

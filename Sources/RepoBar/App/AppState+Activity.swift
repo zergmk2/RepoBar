@@ -3,7 +3,7 @@ import RepoBarCore
 
 extension AppState {
     func fetchActivityRepos() async throws -> [Repository] {
-        let repos = try await self.github.repositoryList(limit: nil)
+        let repos = try await self.repositoryClient.repositoryList(limit: nil)
         let pinned = self.session.settings.repoList.pinnedRepositories
         return await self.mergePinnedRepositories(into: repos, pinned: pinned)
     }
@@ -14,6 +14,14 @@ extension AppState {
         repos: [Repository]
     ) async -> GlobalActivityResult {
         let repoEvents = GlobalActivityMerger.repositoryEvents(from: repos)
+        guard self.activeProvider == .github else {
+            return GlobalActivityResult(
+                events: Array(repoEvents.prefix(AppLimits.GlobalActivity.limit)),
+                commits: [],
+                error: nil,
+                commitError: nil
+            )
+        }
         async let activityResult: Result<[ActivityEvent], Error> = self.capture {
             try await self.github.userActivityEvents(
                 username: username,
@@ -81,11 +89,12 @@ extension AppState {
         let targets = self.pinnedRepoTargets(from: pinned, excluding: existing)
         guard !targets.isEmpty else { return repos }
 
+        let client = self.repositoryClient
         let fetched = await withTaskGroup(of: Repository?.self) { group in
             for target in targets {
-                group.addTask { [github] in
+                group.addTask {
                     do {
-                        return try await github.fullRepository(owner: target.owner, name: target.name)
+                        return try await client.fullRepository(owner: target.owner, name: target.name)
                     } catch {
                         let rateLimitedUntil = (error as? GitHubAPIError)?.rateLimitedUntil
                         return Self.placeholderRepository(

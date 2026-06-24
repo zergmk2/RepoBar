@@ -45,7 +45,10 @@ extension StatusBarMenuManager {
     }
 
     @objc func openActions(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "actions")
+        guard let fullName = self.repoFullName(from: sender),
+              let url = self.webURLBuilder.ciRunsURL(fullName: fullName) else { return }
+
+        self.open(url: url)
     }
 
     @objc func openDiscussions(_ sender: NSMenuItem) {

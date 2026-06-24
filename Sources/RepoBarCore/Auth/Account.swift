@@ -7,6 +7,7 @@ import Foundation
 /// on the same host always resolves to the same record.
 public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
     public let id: String
+    public var provider: HostingProvider
     public var displayName: String
     public var username: String
     public var host: URL
@@ -18,6 +19,7 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
 
     public init(
         id: String,
+        provider: HostingProvider = .github,
         displayName: String,
         username: String,
         host: URL,
@@ -28,6 +30,7 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
         addedAt: Date = Date()
     ) {
         self.id = id
+        self.provider = provider
         self.displayName = displayName
         self.username = username
         self.host = host
@@ -40,6 +43,7 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
 
     /// Convenience initializer that derives `id`, `apiHost`, and `displayName`.
     public init(
+        provider: HostingProvider = .github,
         username: String,
         host: URL,
         authMethod: AuthMethod,
@@ -48,11 +52,12 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
         displayName: String? = nil,
         addedAt: Date = Date()
     ) {
-        let id = Account.deriveID(host: host, username: username)
-        let apiHost = Account.deriveAPIHost(for: host)
+        let id = Account.deriveID(provider: provider, host: host, username: username)
+        let apiHost = Account.deriveAPIHost(provider: provider, for: host)
         let hostLabel = Account.hostAuthority(for: host)
         self.init(
             id: id,
+            provider: provider,
             displayName: displayName ?? "\(username) @ \(hostLabel)",
             username: username,
             host: host,
@@ -66,9 +71,19 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
 
     /// Stable account ID, e.g. `github.com#alice` or `ghe.example.com:8443#bob`.
     public static func deriveID(host: URL, username: String) -> String {
+        self.deriveID(provider: .github, host: host, username: username)
+    }
+
+    public static func deriveID(provider: HostingProvider, host: URL, username: String) -> String {
         let hostName = self.hostAuthority(for: host)
         let user = username.lowercased()
-        return "\(hostName)#\(user)"
+        let base = "\(hostName)#\(user)"
+        switch provider {
+        case .github:
+            return base
+        case .gitlab:
+            return "gitlab:\(base)"
+        }
     }
 
     public static func hostAuthority(for host: URL) -> String {
@@ -84,6 +99,19 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
     /// - github.com -> https://api.github.com
     /// - Enterprise hosts (https://ghe.example.com) -> /api/v3
     public static func deriveAPIHost(for host: URL) -> URL {
+        self.deriveAPIHost(provider: .github, for: host)
+    }
+
+    public static func deriveAPIHost(provider: HostingProvider, for host: URL) -> URL {
+        switch provider {
+        case .github:
+            return self.deriveGitHubAPIHost(for: host)
+        case .gitlab:
+            return host.appendingPathComponent("api/v4")
+        }
+    }
+
+    private static func deriveGitHubAPIHost(for host: URL) -> URL {
         let hostName = (host.host ?? "github.com").lowercased()
         if hostName == "github.com" {
             return URL(string: "https://api.github.com")!
@@ -95,6 +123,33 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var usernameAtHost: String {
         let hostName = Self.hostAuthority(for: self.host)
         return "\(self.username) @ \(hostName)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case provider
+        case displayName
+        case username
+        case host
+        case apiHost
+        case authMethod
+        case loopbackPort
+        case clientID
+        case addedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.provider = try container.decodeIfPresent(HostingProvider.self, forKey: .provider) ?? .github
+        self.displayName = try container.decode(String.self, forKey: .displayName)
+        self.username = try container.decode(String.self, forKey: .username)
+        self.host = try container.decode(URL.self, forKey: .host)
+        self.apiHost = try container.decode(URL.self, forKey: .apiHost)
+        self.authMethod = try container.decode(AuthMethod.self, forKey: .authMethod)
+        self.loopbackPort = try container.decodeIfPresent(Int.self, forKey: .loopbackPort) ?? RepoBarAuthDefaults.loopbackPort
+        self.clientID = try container.decodeIfPresent(String.self, forKey: .clientID)
+        self.addedAt = try container.decodeIfPresent(Date.self, forKey: .addedAt) ?? Date()
     }
 }
 

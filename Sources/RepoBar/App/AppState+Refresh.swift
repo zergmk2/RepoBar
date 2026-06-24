@@ -60,12 +60,14 @@ extension AppState {
             await self.applyCachedMenuSnapshotIfAvailable(now: now)
             // If we have tokens but no user in session, fetch identity once per launch.
             if case .loggedOut = self.session.account {
-                if let user = try? await self.github.currentUser() {
+                if let user = try? await self.repositoryClient.currentUser() {
                     await MainActor.run { self.session.account = .loggedIn(user) }
                 }
             }
-            await self.processGitHubPullRequestNotifications()
-            await self.processGitHubReleaseNotifications()
+            if self.activeProvider == .github {
+                await self.processGitHubPullRequestNotifications()
+                await self.processGitHubReleaseNotifications()
+            }
             let repos = try await self.fetchActivityRepos()
             try Task.checkCancellation()
             await self.updateAccessibleRepositories(repos)
@@ -127,9 +129,11 @@ extension AppState {
             }
             await self.updateMenuDisplayIndex(now: now)
             self.prefetchMenuTargets(from: final, visibleCount: targets.count, token: self.refreshTaskToken)
-            await self.refreshRateLimitDisplayState()
-            await self.refreshActionsLimitsState()
-            let message = await self.github.rateLimitMessage(now: now)
+            if self.activeProvider == .github {
+                await self.refreshRateLimitDisplayState()
+                await self.refreshActionsLimitsState()
+            }
+            let message = self.activeProvider == .github ? await self.github.rateLimitMessage(now: now) : nil
             await MainActor.run {
                 self.session.lastError = message
                 NotificationCenter.default.post(name: .menuDiagnosticsDidChange, object: nil)
@@ -139,7 +143,7 @@ extension AppState {
                 await self.handleAuthenticationFailure(error)
                 return
             }
-            let diagnostics = await self.github.diagnostics()
+        let diagnostics = self.activeProvider == .github ? await self.github.diagnostics() : .empty
             let cacheSummary = try? RepoBarPersistentCache.summary(limit: 100)
             await MainActor.run {
                 self.session.localProjectsScanInProgress = false
@@ -236,8 +240,8 @@ extension AppState {
             if Task.isCancelled { break }
             let batchResult = await withTaskGroup(of: Repository?.self) { group in
                 for repo in batch {
-                    group.addTask { [github, options] in
-                        try? await github.fullRepository(owner: repo.owner, name: repo.name, options: options)
+                    group.addTask { [repositoryClient, options] in
+                        try? await repositoryClient.fullRepository(owner: repo.owner, name: repo.name, options: options)
                     }
                 }
                 var batchOutput: [Repository] = []
@@ -302,7 +306,7 @@ extension AppState {
     }
 
     private func applyCachedMenuSnapshotIfAvailable(now: Date) async {
-        guard let repos = try? await self.github.cachedRepositoryList(limit: nil), repos.isEmpty == false else { return }
+        guard let repos = try? await self.repositoryClient.cachedRepositoryList(limit: nil), repos.isEmpty == false else { return }
 
         await self.updateAccessibleRepositories(repos)
         let visible = self.applyVisibilityFilters(to: repos)

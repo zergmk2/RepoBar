@@ -161,9 +161,9 @@ struct ReposCommand: CommanderRunnableCommand {
             print("RepoBar CLI")
         }
 
-        let context = try await makeAuthenticatedClient()
+        let context = try await makeProviderAuthenticatedClient()
         let settings = context.settings
-        let client = context.client
+        let client = context.repositoryClient
 
         var ownerFilter = self.ownerFilter
         if self.mine {
@@ -258,7 +258,7 @@ struct ReposCommand: CommanderRunnableCommand {
         repos: [Repository],
         baseHost: URL,
         now: Date,
-        client: GitHubClient
+        client: any RepositoryClient
     ) async throws {
         var output = repos
         if self.includeRelease {
@@ -281,31 +281,24 @@ struct ReposCommand: CommanderRunnableCommand {
         }
     }
 
-    private func attachLatestReleases(to repos: [Repository], client: GitHubClient) async throws -> [Repository] {
-        try await withThrowingTaskGroup(of: (Int, Repository).self) { group in
-            for (index, repo) in repos.enumerated() {
-                group.addTask {
-                    var updated = repo
-                    do {
-                        updated.latestRelease = try await client.latestRelease(owner: repo.owner, name: repo.name)
-                    } catch {
-                        if updated.error == nil {
-                            updated.error = "Release: \(error.userFacingMessage)"
-                        }
-                        if let gh = error as? GitHubAPIError {
-                            updated.rateLimitedUntil = maxDate(updated.rateLimitedUntil, gh.rateLimitedUntil ?? gh.retryAfter)
-                        }
-                    }
-                    return (index, updated)
+    private func attachLatestReleases(to repos: [Repository], client: any RepositoryClient) async throws -> [Repository] {
+        var results: [Repository] = []
+        results.reserveCapacity(repos.count)
+        for repo in repos {
+            var updated = repo
+            do {
+                updated.latestRelease = try await client.latestRelease(owner: repo.owner, name: repo.name)
+            } catch {
+                if updated.error == nil {
+                    updated.error = "Release: \(error.userFacingMessage)"
+                }
+                if let gh = error as? GitHubAPIError {
+                    updated.rateLimitedUntil = maxDate(updated.rateLimitedUntil, gh.rateLimitedUntil ?? gh.retryAfter)
                 }
             }
-
-            var results: [Repository?] = Array(repeating: nil, count: repos.count)
-            for try await (index, repo) in group {
-                results[index] = repo
-            }
-            return results.compactMap(\.self)
+            results.append(updated)
         }
+        return results
     }
 
     private struct RepoLookup {
@@ -313,26 +306,19 @@ struct ReposCommand: CommanderRunnableCommand {
         let repo: RepoIdentifier
     }
 
-    private func fetchNamedRepositories(_ names: [String], client: GitHubClient) async throws -> [Repository] {
+    private func fetchNamedRepositories(_ names: [String], client: any RepositoryClient) async throws -> [Repository] {
         let targets: [RepoLookup] = names.enumerated().compactMap { index, name in
             guard let repo = try? parseRepoName(name) else { return nil }
 
             return RepoLookup(index: index, repo: repo)
         }
-        return try await withThrowingTaskGroup(of: (Int, Repository).self) { group in
-            for target in targets {
-                group.addTask {
-                    let repo = try await client.fullRepository(owner: target.repo.owner, name: target.repo.name)
-                    return (target.index, repo.withOrder(target.index))
-                }
-            }
-
-            var results: [Repository?] = Array(repeating: nil, count: names.count)
-            for try await (index, repo) in group {
-                results[index] = repo
-            }
-            return results.compactMap(\.self)
+        var results: [Repository] = []
+        results.reserveCapacity(targets.count)
+        for target in targets {
+            let repo = try await client.fullRepository(owner: target.repo.owner, name: target.repo.name)
+            results.append(repo.withOrder(target.index))
         }
+        return results
     }
 
     nonisolated static func activityFetchLimit(requestedLimit: Int?, ownerFilter: RepoOwnerFilter?) -> Int? {
@@ -357,8 +343,14 @@ private func maxDate(_ lhs: Date?, _ rhs: Date?) -> Date? {
 struct LoginCommand: CommanderRunnableCommand {
     nonisolated static let commandName = "login"
 
-    @Option(name: .customLong("host"), help: "GitHub host URL (GitHub.com or Enterprise base URL)")
+    @Option(name: .customLong("provider"), help: "Hosting provider (github or gitlab)")
+    var provider: HostingProvider = .github
+
+    @Option(name: .customLong("host"), help: "Provider host URL (GitHub.com, Enterprise, or self-managed GitLab base URL)")
     var host: String?
+
+    @Option(name: .customLong("token"), help: "Personal Access Token (required for GitLab)")
+    var token: String?
 
     @Option(name: .customLong("client-id"), help: "GitHub App OAuth client ID")
     var clientID: String?
@@ -380,7 +372,9 @@ struct LoginCommand: CommanderRunnableCommand {
     }
 
     mutating func bind(_ values: ParsedValues) throws {
+        self.provider = try values.decodeOption("provider") ?? .github
         self.host = try values.decodeOption("host")
+        self.token = try values.decodeOption("token")
         self.clientID = try values.decodeOption("clientID")
         self.clientSecret = try values.decodeOption("clientSecret")
         self.loopbackPort = try values.decodeOption("loopbackPort")
@@ -390,6 +384,10 @@ struct LoginCommand: CommanderRunnableCommand {
     mutating func run() async throws {
         if let loopbackPort, loopbackPort <= 0 || loopbackPort >= 65536 {
             throw ValidationError("--loopback-port must be between 1 and 65535")
+        }
+        if self.provider == .gitlab {
+            try await self.loginWithGitLabToken()
+            return
         }
 
         let store = cliSettingsStore()
@@ -461,6 +459,41 @@ struct LoginCommand: CommanderRunnableCommand {
         store.save(settings)
 
         print("Login succeeded; tokens stored for \(account.id).")
+    }
+
+    private func loginWithGitLabToken() async throws {
+        guard let token = self.token?.trimmingCharacters(in: .whitespacesAndNewlines), token.isEmpty == false else {
+            throw ValidationError("--token is required for GitLab login")
+        }
+        guard let host else {
+            throw ValidationError("--host is required for GitLab login")
+        }
+
+        let store = cliSettingsStore()
+        var settings = store.load()
+        let normalizedHost = try HostingProviderHostNormalizer.normalize(parseHost(host), provider: .gitlab)
+        let apiHost = Account.deriveAPIHost(provider: .gitlab, for: normalizedHost)
+        let client = try GitLabClient(apiHost: apiHost) { token }
+        let identity = try await client.currentUser()
+        let account = Account(
+            provider: .gitlab,
+            username: identity.username,
+            host: normalizedHost,
+            authMethod: .pat,
+            displayName: self.label
+        )
+
+        try TokenStore.shared.savePAT(token, accountID: account.id)
+        settings.authMethod = .pat
+        if let index = settings.accounts.firstIndex(where: { $0.id == account.id }) {
+            settings.accounts[index] = account
+        } else {
+            settings.accounts.append(account)
+        }
+        settings.activeAccountID = account.id
+        store.save(settings)
+
+        print("Login succeeded; token stored for \(account.id).")
     }
 }
 

@@ -72,9 +72,12 @@ struct AddRepoView: View {
             let includeArchived = await MainActor.run { self.session.settings.repoList.showArchived }
             let trimmed = self.query.trimmingCharacters(in: .whitespacesAndNewlines)
             let repos: [Repository] = if trimmed.isEmpty {
-                try await self.appState.github.recentRepositories(limit: AppLimits.Autocomplete.addRepoRecentLimit)
-            } else {
+                try await self.appState.repositoryClient.repositoryList(limit: AppLimits.Autocomplete.addRepoRecentLimit)
+            } else if self.appState.activeProvider == .github {
                 try await self.appState.github.searchRepositories(matching: trimmed)
+            } else {
+                try await self.appState.repositoryClient.repositoryList(limit: nil)
+                    .filter { $0.fullName.localizedCaseInsensitiveContains(trimmed) }
             }
             let filtered = RepositoryFilter.apply(repos, includeForks: includeForks, includeArchived: includeArchived)
             await MainActor.run { self.results = filtered }
