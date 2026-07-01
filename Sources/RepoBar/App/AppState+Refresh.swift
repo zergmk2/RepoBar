@@ -224,10 +224,16 @@ extension AppState {
         if let accountID = self.session.settings.resolvedActiveAccount()?.id {
             TokenStore.shared.clear(accountID: accountID)
         }
-        await self.auth.logout()
-        await self.patAuth.logout()
+        if Self.shouldClearLegacyCredentials(for: self.activeProvider) {
+            await self.auth.logout()
+            await self.patAuth.logout()
+        }
         let localSnapshot = await self.snapshotForLoggedOutState(localSettings: self.session.settings.localProjects)
         await self.applyLoggedOutState(localSnapshot: localSnapshot, lastError: error.userFacingMessage)
+    }
+
+    static func shouldClearLegacyCredentials(for provider: HostingProvider) -> Bool {
+        provider == .github
     }
 
     private func hydrateMenuTargets(_ repos: [Repository], fetchHeatmap: Bool) async -> [Repository] {

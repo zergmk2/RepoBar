@@ -182,6 +182,34 @@ struct GitLabClientTests {
         }
     }
 
+    @Test
+    func `read API scope validation accepts least privilege and API scopes`() async throws {
+        for scopes in [["read_api"], ["api"]] {
+            let transport = GitLabRecordingTransport { request in
+                #expect(request.url?.path == "/api/v4/personal_access_tokens/self")
+                let body = try JSONEncoder().encode(["scopes": scopes])
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (body, response)
+            }
+            let client = try Self.client(transport: transport)
+
+            try await client.validateReadAPIScope()
+        }
+    }
+
+    @Test
+    func `read API scope validation rejects read user only token`() async throws {
+        let transport = GitLabRecordingTransport { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("{\"scopes\":[\"read_user\"]}".utf8), response)
+        }
+        let client = try Self.client(transport: transport)
+
+        await #expect(throws: GitLabAPIError.self) {
+            try await client.validateReadAPIScope()
+        }
+    }
+
     private static func client(transport: GitLabRecordingTransport) throws -> GitLabClient {
         try GitLabClient(
             apiHost: #require(URL(string: "https://gitlab.example.com/api/v4")),

@@ -203,7 +203,9 @@ private func repoPathFromRemote(_ value: String) -> [String]? {
         let parts = url.path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
         guard parts.count >= 2 else { return nil }
 
-        return repositoryPathParts(from: parts)
+        let scheme = url.scheme?.lowercased()
+        let isCloneRemote = scheme == "ssh" || scheme == "git" || parts.last?.hasSuffix(".git") == true
+        return isCloneRemote ? parts : repositoryPathParts(from: parts)
     }
 
     guard let separator = value.firstIndex(of: ":") else { return nil }
@@ -215,7 +217,8 @@ private func repoPathFromRemote(_ value: String) -> [String]? {
     let parts = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
     guard parts.count >= 2 else { return nil }
 
-    return repositoryPathParts(from: parts)
+    // SCP-style syntax is a clone remote, so route-like subgroup names are literal path components.
+    return parts
 }
 
 private func repositoryPathParts(from parts: [String]) -> [String] {

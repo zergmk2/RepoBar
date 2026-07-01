@@ -57,4 +57,10 @@ struct AppStateSettingsTests {
         #expect(appState.activeProvider == .gitlab)
         #expect(appState.repositoryClient is GitLabClient)
     }
+
+    @Test
+    func `authentication failure only clears legacy credentials for GitHub`() {
+        #expect(AppState.shouldClearLegacyCredentials(for: .github))
+        #expect(AppState.shouldClearLegacyCredentials(for: .gitlab) == false)
+    }
 }

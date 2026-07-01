@@ -52,6 +52,16 @@ public actor GitLabClient {
         return UserIdentity(username: user.username, host: self.webHostURL())
     }
 
+    public func validateReadAPIScope() async throws {
+        let token = try await self.get(
+            path: "/personal_access_tokens/self",
+            decode: GitLabPersonalAccessToken.self
+        )
+        guard token.scopes.contains("read_api") || token.scopes.contains("api") else {
+            throw GitLabAPIError.badStatus(code: 403, message: "Token must include the read_api scope.")
+        }
+    }
+
     public func repositoryList(limit: Int?) async throws -> [Repository] {
         async let projectItems = self.projectItems(limit: limit)
         async let mergeRequestCounts = self.openMergeRequestCountsByProject()

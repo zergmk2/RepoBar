@@ -4,6 +4,10 @@ public struct GitLabCurrentUser: Decodable, Sendable {
     public let username: String
 }
 
+public struct GitLabPersonalAccessToken: Decodable, Sendable {
+    public let scopes: [String]
+}
+
 public struct GitLabProjectItem: Decodable, Sendable {
     public let id: Int
     public let name: String

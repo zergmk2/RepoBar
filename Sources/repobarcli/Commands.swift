@@ -495,6 +495,7 @@ struct LoginCommand: CommanderRunnableCommand {
         let normalizedHost = try HostingProviderHostNormalizer.normalize(parseHost(host), provider: .gitlab)
         let apiHost = Account.deriveAPIHost(provider: .gitlab, for: normalizedHost)
         let client = try GitLabClient(apiHost: apiHost) { token }
+        try await client.validateReadAPIScope()
         let identity = try await client.currentUser()
         let account = Account(
             provider: .gitlab,

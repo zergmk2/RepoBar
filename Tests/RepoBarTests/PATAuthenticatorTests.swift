@@ -189,11 +189,17 @@ struct PATAuthenticatorTests {
 
         let handlerID = UUID().uuidString
         Self.MockURLProtocol.register(handlerID: handlerID) { request in
-            #expect(request.url?.absoluteString == "https://gitlab.example.com/api/v4/user")
             #expect(request.value(forHTTPHeaderField: "PRIVATE-TOKEN") == "gitlab-token")
             #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Data("{\"username\":\"alice\"}".utf8), response)
+            switch request.url?.path {
+            case "/api/v4/user":
+                return (Data("{\"username\":\"alice\"}".utf8), response)
+            case "/api/v4/personal_access_tokens/self":
+                return (Data("{\"scopes\":[\"read_api\"]}".utf8), response)
+            default:
+                throw URLError(.unsupportedURL)
+            }
         }
         defer { Self.MockURLProtocol.unregister(handlerID: handlerID) }
 
@@ -208,6 +214,38 @@ struct PATAuthenticatorTests {
         )
 
         #expect(user.username == "alice")
+        #expect(try store.loadPAT() == nil)
+    }
+
+    @Test
+    @MainActor
+    func `GitLab PAT requires read API scope`() async throws {
+        let service = "com.steipete.repobar.auth.tests.\(UUID().uuidString)"
+        let store = TokenStore(service: service)
+        defer { store.clear() }
+
+        let handlerID = UUID().uuidString
+        Self.MockURLProtocol.register(handlerID: handlerID) { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            if request.url?.path == "/api/v4/user" {
+                return (Data("{\"username\":\"alice\"}".utf8), response)
+            }
+            return (Data("{\"scopes\":[\"read_user\"]}".utf8), response)
+        }
+        defer { Self.MockURLProtocol.unregister(handlerID: handlerID) }
+
+        let authenticator = PATAuthenticator(
+            tokenStore: store,
+            session: Self.taggedSession(URLSession(configuration: Self.sessionConfiguration()), handlerID: handlerID)
+        )
+
+        await #expect(throws: PATAuthError.self) {
+            _ = try await authenticator.authenticate(
+                provider: .gitlab,
+                pat: "gitlab-token",
+                host: #require(URL(string: "https://gitlab.example.com"))
+            )
+        }
         #expect(try store.loadPAT() == nil)
     }
 }

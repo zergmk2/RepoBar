@@ -39,6 +39,17 @@ struct CLIParsingTests {
     }
 
     @Test
+    func `parse clone remotes preserve route words in subgroup paths`() throws {
+        let ssh = try parseRepoName("git@gitlab.example.com:platform/issues/widget.git")
+        #expect(ssh.owner == "platform/issues")
+        #expect(ssh.name == "widget")
+
+        let https = try parseRepoName("https://gitlab.example.com/platform/actions/widget.git")
+        #expect(https.owner == "platform/actions")
+        #expect(https.name == "widget")
+    }
+
+    @Test
     func `parse repo name rejects missing slash`() {
         #expect(throws: ValidationError.self) {
             _ = try parseRepoName("RepoBar")

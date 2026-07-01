@@ -110,9 +110,24 @@ public final class PATAuthenticator {
                 username = try JSONDecoder().decode(GitHubUserResponse.self, from: data).login
             case .gitlab:
                 username = try JSONDecoder().decode(GitLabUserResponse.self, from: data).username
+                let client = try GitLabClient(
+                    apiHost: apiHost,
+                    tokenProvider: { pat },
+                    dataLoader: self.dataLoader
+                )
+                try await client.validateReadAPIScope()
             }
-        } catch {
+        } catch let GitLabAPIError.badStatus(code, _) where code == 401 {
+            throw PATAuthError.invalidToken
+        } catch let GitLabAPIError.badStatus(code, _) where code == 403 {
+            throw PATAuthError.forbidden("Access forbidden. Token may lack required scopes (read_api)")
+        } catch is GitLabAPIError {
             throw PATAuthError.invalidResponse
+        } catch {
+            if error is DecodingError {
+                throw PATAuthError.invalidResponse
+            }
+            throw PATAuthError.networkError(error)
         }
 
         // Fixed legacy keys remain GitHub-only compatibility storage. Provider
