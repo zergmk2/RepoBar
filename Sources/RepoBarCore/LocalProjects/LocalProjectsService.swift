@@ -340,7 +340,7 @@
             let parts = url.path.split(separator: "/").map(String.init)
             guard parts.count >= 2 else { return nil }
 
-            let owner = parts[parts.count - 2]
+            let owner = parts.dropLast().joined(separator: "/")
             let name = self.stripGitSuffix(parts.last ?? "")
             return GitRemote(host: host, owner: owner, name: name)
         }
@@ -355,7 +355,7 @@
             let pathParts = path.split(separator: "/").map(String.init)
             guard pathParts.count >= 2 else { return nil }
 
-            let owner = pathParts[pathParts.count - 2]
+            let owner = pathParts.dropLast().joined(separator: "/")
             let name = self.stripGitSuffix(pathParts.last ?? "")
             return GitRemote(host: hostPart, owner: owner, name: name)
         }

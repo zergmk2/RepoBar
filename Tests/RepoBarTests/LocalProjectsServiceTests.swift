@@ -76,6 +76,32 @@ struct LocalProjectsServiceTests {
     }
 
     @Test
+    func `snapshot preserves subgroup namespaces from remote formats`() async throws {
+        let root = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let repoA = root.appendingPathComponent("repo-a", isDirectory: true)
+        let repoB = root.appendingPathComponent("repo-b", isDirectory: true)
+        try FileManager.default.createDirectory(at: repoA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: repoB, withIntermediateDirectories: true)
+
+        try initializeRepo(at: repoA, origin: "https://gitlab.example.com/platform/backend/repo-a.git")
+        try initializeRepo(at: repoB, origin: "git@gitlab.example.com:platform/backend/repo-b.git")
+
+        let snapshot = await LocalProjectsService().snapshot(
+            rootPath: root.path,
+            maxDepth: 1,
+            autoSyncEnabled: false,
+            concurrencyLimit: 1
+        )
+
+        #expect(Set(snapshot.statuses.compactMap(\.fullName)) == [
+            "platform/backend/repo-a",
+            "platform/backend/repo-b"
+        ])
+    }
+
+    @Test
     func `snapshot discovered repo count includes all discovered even when filtered`() async throws {
         let root = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
