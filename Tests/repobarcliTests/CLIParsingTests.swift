@@ -46,9 +46,13 @@ struct CLIParsingTests {
     }
 
     @Test
-    func `parse repo name rejects extra raw path components`() {
-        #expect(throws: ValidationError.self) {
-            _ = try parseRepoName("steipete/RepoBar/issues/1")
-        }
+    func `parse repo name preserves reserved words in raw subgroup paths`() throws {
+        let result = try parseRepoName("platform/actions/widget")
+        #expect(result.owner == "platform/actions")
+        #expect(result.name == "widget")
+
+        let reservedName = try parseRepoName("owner/issues")
+        #expect(reservedName.owner == "owner")
+        #expect(reservedName.name == "issues")
     }
 }

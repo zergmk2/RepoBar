@@ -191,7 +191,7 @@ func parseRepoName(_ value: String) throws -> RepoIdentifier {
     }
 
     let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-    guard parts.count >= 2, RepoIdentifier.isLikelyRepositoryPath(parts) else {
+    guard parts.count >= 2 else {
         throw ValidationError("Repository must be in namespace/name format")
     }
 
@@ -230,14 +230,6 @@ private func repositoryPathParts(from parts: [String]) -> [String] {
 }
 
 private extension RepoIdentifier {
-    static func isLikelyRepositoryPath(_ parts: [String]) -> Bool {
-        let reserved: Set = [
-            "actions", "activity", "branches", "commits", "discussions", "issues",
-            "merge_requests", "pipelines", "pull", "releases", "tags", "tree", "workflows"
-        ]
-        return parts.allSatisfy { reserved.contains($0) == false }
-    }
-
     init(validatingPathParts rawParts: [String]) throws {
         guard rawParts.count >= 2 else {
             throw ValidationError("Repository must be in namespace/name format")

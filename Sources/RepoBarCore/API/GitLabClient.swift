@@ -15,6 +15,13 @@ public enum GitLabAPIError: Error, LocalizedError, Sendable {
             "Invalid GitLab response."
         }
     }
+
+    public var isAuthenticationFailure: Bool {
+        if case let .badStatus(code, _) = self {
+            return code == 401
+        }
+        return false
+    }
 }
 
 public actor GitLabClient {

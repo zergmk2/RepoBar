@@ -95,6 +95,12 @@ struct RefreshAndBackoffTests {
         let unauthorized: Error = GitHubAPIError.badStatus(code: 401, message: nil)
         #expect(unauthorized.isAuthenticationFailure)
 
+        let gitLabUnauthorized: Error = GitLabAPIError.badStatus(code: 401, message: "Unauthorized")
+        #expect(gitLabUnauthorized.isAuthenticationFailure)
+
+        let gitLabForbidden: Error = GitLabAPIError.badStatus(code: 403, message: "Forbidden")
+        #expect(!gitLabForbidden.isAuthenticationFailure)
+
         let refreshFailure: Error = GitHubAPIError.badStatus(
             code: 400,
             message: "Authentication refresh failed (HTTP 400). Please sign in again."

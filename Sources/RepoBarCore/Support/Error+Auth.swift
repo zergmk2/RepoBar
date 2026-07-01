@@ -5,6 +5,9 @@ public extension Error {
         if let gh = self as? GitHubAPIError {
             return gh.isAuthenticationFailure
         }
+        if let gitLab = self as? GitLabAPIError {
+            return gitLab.isAuthenticationFailure
+        }
         if let urlError = self as? URLError, urlError.code == .userAuthenticationRequired {
             return true
         }
