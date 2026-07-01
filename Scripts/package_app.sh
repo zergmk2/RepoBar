@@ -120,10 +120,6 @@ cat > "${INFO_PLIST}" <<PLIST
     <key>SUEnableInstallerLauncherService</key><true/>
     <key>LSUIElement</key><true/>
     <key>LSMultipleInstancesProhibited</key><true/>
-    <key>NSAppTransportSecurity</key>
-    <dict>
-        <key>NSAllowsArbitraryLoads</key><true/>
-    </dict>
     <key>NSHighResolutionCapable</key><true/>
 $(if [ "${CONFIGURATION}" = "debug" ]; then cat <<'PLIST_DEBUG_AUTH'
     <key>RepoBarTokenStore</key><string>file</string>

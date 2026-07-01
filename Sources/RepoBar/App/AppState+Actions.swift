@@ -3,6 +3,11 @@ import RepoBarCore
 
 extension AppState {
     func refreshActionsLimitsState() async {
+        guard self.activeProvider == .github else {
+            await MainActor.run { self.session.actionsOrgSnapshots = [] }
+            return
+        }
+
         let settings = self.session.settings.actions
         let menuCustomization = self.session.settings.menuCustomization.normalized()
         guard !menuCustomization.hiddenMainMenuItems.contains(.actionsLimits) else { return }

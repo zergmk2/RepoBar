@@ -1,7 +1,7 @@
 import Foundation
 
 extension Repository {
-    public static func from(gitLabProject item: GitLabProjectItem) -> Repository {
+    public static func from(gitLabProject item: GitLabProjectItem, openPulls: Int = 0) -> Repository {
         Repository(
             id: "gitlab:\(item.id)",
             name: item.path,
@@ -17,15 +17,16 @@ extension Repository {
             rateLimitedUntil: nil,
             ciStatus: .unknown,
             ciRunCount: nil,
-            openIssues: 0,
-            openPulls: 0,
+            openIssues: item.openIssuesCount ?? 0,
+            openPulls: openPulls,
             stars: item.starCount,
             forks: item.forksCount,
             pushedAt: item.lastActivityAt,
             latestRelease: nil,
             latestActivity: nil,
             traffic: nil,
-            heatmap: []
+            heatmap: [],
+            discussionsEnabled: false
         )
     }
 

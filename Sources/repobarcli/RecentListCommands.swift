@@ -134,6 +134,10 @@ struct DiscussionsCommand: CommanderRunnableCommand {
         let repo = try requireRepoIdentifier(self.repoName)
 
         let context = try await makeProviderAuthenticatedClient()
+        guard context.provider == .github else {
+            throw ValidationError("Discussions are only available for GitHub accounts")
+        }
+
         let discussions = try await context.repositoryClient.recentDiscussions(owner: repo.owner, name: repo.name, limit: self.limit)
 
         if self.output.jsonOutput {

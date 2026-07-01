@@ -360,34 +360,40 @@ struct RefreshCommand: CommanderRunnableCommand {
     }
 }
 
-private func refreshPinned(_ pinned: [String], client: any RepositoryClient) async throws -> [RefreshRepositoryOutput] {
-    var results: [RefreshRepositoryOutput] = []
-    results.reserveCapacity(pinned.count)
-    for name in pinned {
-        let parsed: RepoIdentifier
-        do {
-            parsed = try parseRepoName(name)
-        } catch {
-            results.append(RefreshRepositoryOutput(fullName: name, error: "Invalid repository name", rateLimitedUntil: nil))
-            continue
+private func refreshPinned(_ pinned: [String], client: any RepositoryServiceClient) async throws -> [RefreshRepositoryOutput] {
+    try await withThrowingTaskGroup(of: RefreshRepositoryOutput.self) { group in
+        for name in pinned {
+            group.addTask {
+                let parsed: RepoIdentifier
+                do {
+                    parsed = try parseRepoName(name)
+                } catch {
+                    return RefreshRepositoryOutput(fullName: name, error: "Invalid repository name", rateLimitedUntil: nil)
+                }
+
+                do {
+                    let repo = try await client.fullRepository(owner: parsed.owner, name: parsed.name)
+                    return RefreshRepositoryOutput(
+                        fullName: repo.fullName,
+                        error: repo.error,
+                        rateLimitedUntil: repo.rateLimitedUntil
+                    )
+                } catch {
+                    return RefreshRepositoryOutput(
+                        fullName: name,
+                        error: error.userFacingMessage,
+                        rateLimitedUntil: nil
+                    )
+                }
+            }
         }
 
-        do {
-            let repo = try await client.fullRepository(owner: parsed.owner, name: parsed.name)
-            results.append(RefreshRepositoryOutput(
-                fullName: repo.fullName,
-                error: repo.error,
-                rateLimitedUntil: repo.rateLimitedUntil
-            ))
-        } catch {
-            results.append(RefreshRepositoryOutput(
-                fullName: name,
-                error: error.userFacingMessage,
-                rateLimitedUntil: nil
-            ))
+        var results: [RefreshRepositoryOutput] = []
+        for try await result in group {
+            results.append(result)
         }
+        return results.sorted { $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending }
     }
-    return results.sorted { $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending }
 }
 
 private struct RepoIssuesOutput: Encodable {

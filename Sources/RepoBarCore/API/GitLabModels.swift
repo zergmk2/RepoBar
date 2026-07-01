@@ -14,6 +14,7 @@ public struct GitLabProjectItem: Decodable, Sendable {
     public let starCount: Int
     public let forksCount: Int
     public let archived: Bool
+    public let openIssuesCount: Int?
     public let lastActivityAt: Date?
     public let namespace: Namespace
     public let tagList: [String]?
@@ -39,11 +40,24 @@ public struct GitLabProjectItem: Decodable, Sendable {
         case starCount = "star_count"
         case forksCount = "forks_count"
         case archived
+        case openIssuesCount = "open_issues_count"
         case lastActivityAt = "last_activity_at"
         case namespace
         case tagList = "tag_list"
         case topics
     }
+}
+
+struct GitLabProjectReferenceItem: Decodable {
+    let projectID: Int
+
+    enum CodingKeys: String, CodingKey {
+        case projectID = "project_id"
+    }
+}
+
+struct GitLabCountItem: Decodable {
+    let iid: Int
 }
 
 public struct GitLabUserSummary: Decodable, Sendable {
@@ -241,8 +255,8 @@ public struct GitLabContributorItem: Decodable, Sendable {
     public let commits: Int
 }
 
-extension JSONDecoder {
-    public static var gitLab: JSONDecoder {
+public extension JSONDecoder {
+    static var gitLab: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()

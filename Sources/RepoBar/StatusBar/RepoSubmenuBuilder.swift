@@ -183,6 +183,8 @@ struct RepoSubmenuBuilder {
                 badgeAccessibilityLabel: badgeAccessibilityLabel
             ))]
         case .changelog:
+            guard self.appState.activeProvider == .github else { return [] }
+
             let presentation = self.target.cachedChangelogPresentation(
                 fullName: repo.title,
                 releaseTag: repo.source.latestRelease?.tag
@@ -194,7 +196,7 @@ struct RepoSubmenuBuilder {
             )]
         case .ciRuns:
             let runBadge = repo.ciRunCount.flatMap { $0 > 0 ? String($0) : nil }
-            let openTitle = self.appState.activeProvider == .gitlab ? "Open CI/CD Jobs" : "Open Actions"
+            let openTitle = self.appState.activeProvider == .gitlab ? "Open CI/CD Pipelines" : "Open Actions"
             return [self.recentListSubmenuItem(RecentListConfig(
                 title: "CI Runs",
                 systemImage: "bolt",
@@ -251,7 +253,10 @@ struct RepoSubmenuBuilder {
                 badgeText: nil
             ))]
         case .heatmap:
-            guard settings.heatmap.display == .submenu, !repo.heatmap.isEmpty else { return [] }
+            guard self.appState.activeProvider == .github,
+                  settings.heatmap.display == .submenu,
+                  !repo.heatmap.isEmpty
+            else { return [] }
 
             let filtered = HeatmapFilter.filter(repo.heatmap, range: self.appState.session.heatmapRange)
             let heatmap = VStack(spacing: 4) {

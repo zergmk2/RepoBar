@@ -40,10 +40,10 @@ struct AppStateSettingsTests {
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = SettingsStore(defaults: defaults)
-        let account = Account(
+        let account = try Account(
             provider: .gitlab,
             username: "alice",
-            host: try #require(URL(string: "https://gitlab.example.com")),
+            host: #require(URL(string: "https://gitlab.example.com")),
             authMethod: .pat
         )
         var settings = UserSettings()

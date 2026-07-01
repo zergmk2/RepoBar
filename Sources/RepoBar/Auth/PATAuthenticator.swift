@@ -30,14 +30,20 @@ public final class PATAuthenticator {
     private let signposter = OSSignposter(subsystem: "com.steipete.repobar", category: "pat-auth")
     private var cachedPAT: String?
     private var hasLoadedPAT = false
-    private let session: URLSession
+    private let dataLoader: HTTPDataLoader
 
     public init(
-        tokenStore: TokenStore = .shared,
-        session: URLSession = .shared
+        tokenStore: TokenStore = .shared
     ) {
         self.tokenStore = tokenStore
-        self.session = session
+        self.dataLoader = .noRedirects
+    }
+
+    init(tokenStore: TokenStore, session: URLSession) {
+        self.tokenStore = tokenStore
+        self.dataLoader = HTTPDataLoader { request in
+            try await session.data(for: request)
+        }
     }
 
     public func authenticate(pat: String, host: URL) async throws -> UserIdentity {
@@ -49,7 +55,8 @@ public final class PATAuthenticator {
         let signpost = self.signposter.beginInterval("authenticate")
         defer { self.signposter.endInterval("authenticate", signpost) }
 
-        let apiHost = Self.apiHost(provider: provider, for: host)
+        let normalizedHost = try HostingProviderHostNormalizer.normalize(host, provider: provider)
+        let apiHost = Self.apiHost(provider: provider, for: normalizedHost)
         let userURL = apiHost.appendingPathComponent("user")
 
         var request = URLRequest(url: userURL)
@@ -64,12 +71,15 @@ public final class PATAuthenticator {
 
         let (data, response): (Data, URLResponse)
         do {
-            (data, response) = try await self.session.data(for: request)
+            (data, response) = try await self.dataLoader.data(for: request)
         } catch {
             throw PATAuthError.networkError(error)
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
+            throw PATAuthError.invalidResponse
+        }
+        guard Self.sameOrigin(httpResponse.url, userURL) else {
             throw PATAuthError.invalidResponse
         }
 
@@ -79,7 +89,8 @@ public final class PATAuthenticator {
         case 401:
             throw PATAuthError.invalidToken
         case 403:
-            throw PATAuthError.forbidden("Access forbidden. Token may lack required scopes (repo, read:org)")
+            let scopes = provider == .github ? "repo, read:org" : "read_api"
+            throw PATAuthError.forbidden("Access forbidden. Token may lack required scopes (\(scopes))")
         default:
             throw PATAuthError.invalidResponse
         }
@@ -104,12 +115,16 @@ public final class PATAuthenticator {
             throw PATAuthError.invalidResponse
         }
 
-        try self.tokenStore.savePAT(pat)
-        self.cachedPAT = pat
-        self.hasLoadedPAT = true
-        await DiagnosticsLogger.shared.message("PAT login succeeded; token stored.")
+        // Fixed legacy keys remain GitHub-only compatibility storage. Provider
+        // accounts persist credentials under their account-scoped keys.
+        if provider == .github {
+            try self.tokenStore.savePAT(pat)
+            self.cachedPAT = pat
+            self.hasLoadedPAT = true
+        }
+        await DiagnosticsLogger.shared.message("PAT login succeeded.")
 
-        return UserIdentity(username: username, host: host)
+        return UserIdentity(username: username, host: normalizedHost)
     }
 
     /// Loads the stored PAT from Keychain.
@@ -146,5 +161,13 @@ public final class PATAuthenticator {
         }
         // Enterprise: use /api/v3 path
         return host.appendingPathComponent("api/v3")
+    }
+
+    private static func sameOrigin(_ lhs: URL?, _ rhs: URL) -> Bool {
+        guard let lhs else { return false }
+
+        return lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
+            && lhs.host?.lowercased() == rhs.host?.lowercased()
+            && lhs.port == rhs.port
     }
 }

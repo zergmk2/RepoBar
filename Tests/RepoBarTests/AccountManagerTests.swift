@@ -83,10 +83,10 @@ struct AccountManagerTests {
     func `gitlab account uses provider client without github active client`() async throws {
         let service = "com.steipete.repobar.account-manager-tests.\(UUID().uuidString)"
         let store = TokenStore(service: service)
-        let account = Account(
+        let account = try Account(
             provider: .gitlab,
             username: "alice",
-            host: try #require(URL(string: "https://gitlab.example.com")),
+            host: #require(URL(string: "https://gitlab.example.com")),
             authMethod: .pat
         )
         defer { store.clear(accountID: account.id) }

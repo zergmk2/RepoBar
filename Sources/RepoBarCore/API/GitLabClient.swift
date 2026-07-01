@@ -25,14 +25,16 @@ public actor GitLabClient {
     public init(
         apiHost: URL,
         tokenProvider: @escaping @Sendable () async throws -> String,
-        dataLoader: HTTPDataLoader = .live
+        dataLoader: HTTPDataLoader = .noRedirects
     ) throws {
-        guard let scheme = apiHost.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              apiHost.host?.isEmpty == false
+        guard apiHost.scheme?.lowercased() == "https",
+              apiHost.host?.isEmpty == false,
+              apiHost.user == nil,
+              apiHost.password == nil
         else {
             throw GitLabAPIError.invalidHost
         }
+
         self.apiHost = apiHost
         self.tokenProvider = tokenProvider
         self.dataLoader = dataLoader
@@ -44,8 +46,10 @@ public actor GitLabClient {
     }
 
     public func repositoryList(limit: Int?) async throws -> [Repository] {
-        let items = try await self.projectItems(limit: limit)
-        return items.map { Repository.from(gitLabProject: $0) }
+        async let projectItems = self.projectItems(limit: limit)
+        async let mergeRequestCounts = self.openMergeRequestCountsByProject()
+        let (items, counts) = try await (projectItems, mergeRequestCounts)
+        return items.map { Repository.from(gitLabProject: $0, openPulls: counts[$0.id] ?? 0) }
     }
 
     public func activityRepositories(limit: Int?) async throws -> [Repository] {
@@ -54,8 +58,30 @@ public actor GitLabClient {
 
     public func fullRepository(owner: String, name: String) async throws -> Repository {
         let pathWithNamespace = "\(owner)/\(name)"
-        let item = try await self.project(pathWithNamespace: pathWithNamespace)
-        return Repository.from(gitLabProject: item)
+        let issuesPath = self.projectPath(owner: owner, name: name, suffix: "/issues")
+        let mergeRequestsPath = self.projectPath(owner: owner, name: name, suffix: "/merge_requests")
+        async let item = self.project(pathWithNamespace: pathWithNamespace)
+        async let issueCountTask = self.openItemCount(path: issuesPath)
+        async let pullCountTask = self.openItemCount(path: mergeRequestsPath)
+        async let runsTask = self.recentWorkflowRuns(owner: owner, name: name, limit: 8)
+        async let releasesTask = self.recentReleases(owner: owner, name: name, limit: 1)
+        let project = try await item
+
+        // GitLab projects can disable individual features. Their endpoints then return an error even
+        // though the project itself is readable, so optional metadata must not block repository hydration.
+        let pullCount = await (try? pullCountTask) ?? 0
+        var repository = Repository.from(gitLabProject: project, openPulls: pullCount)
+        if let issueCount = try? await issueCountTask {
+            repository.openIssues = issueCount
+        }
+        let recentRuns = await (try? runsTask) ?? []
+        repository.ciStatus = recentRuns.first?.status ?? .unknown
+        repository.ciRunCount = recentRuns.count
+        repository.latestRelease = try? await releasesTask.first.map {
+            Release(name: $0.name, tag: $0.tag, publishedAt: $0.publishedAt, url: $0.url)
+        }
+        repository.discussionsEnabled = false
+        return repository
     }
 
     public func recentIssues(owner: String, name: String, limit: Int = 20) async throws -> [RepoIssueSummary] {
@@ -117,24 +143,24 @@ public actor GitLabClient {
     }
 
     public func recentWorkflowRuns(owner: String, name: String, limit: Int = 20) async throws -> [RepoWorkflowRunSummary] {
-        let jobLimit = max(1, min(limit, 8))
+        let jobLimit = max(1, min(limit, 100))
         let items = try await self.get(
-            path: self.projectPath(owner: owner, name: name, suffix: "/jobs"),
+            path: self.projectPath(owner: owner, name: name, suffix: "/pipelines"),
             queryItems: self.recentQueryItems(limit: jobLimit, extra: [
                 URLQueryItem(name: "order_by", value: "id"),
                 URLQueryItem(name: "sort", value: "desc")
             ]),
-            decode: [GitLabJobItem].self
+            decode: [GitLabPipelineItem].self
         )
         return items.map {
             RepoWorkflowRunSummary(
-                name: $0.name,
-                url: $0.webURL ?? self.webURL(owner: owner, name: name, suffix: "/-/jobs/\($0.id)"),
-                updatedAt: $0.finishedAt ?? $0.startedAt ?? $0.createdAt ?? Date.distantPast,
+                name: "Pipeline #\($0.id)",
+                url: $0.webURL,
+                updatedAt: $0.updatedAt ?? $0.createdAt ?? Date.distantPast,
                 status: Self.ciStatus(fromGitLabStatus: $0.status),
                 conclusion: $0.status,
                 branch: $0.ref,
-                event: $0.stage,
+                event: $0.source,
                 actorLogin: $0.user?.username,
                 actorAvatarURL: $0.user?.avatarURL,
                 runNumber: $0.id
@@ -154,6 +180,7 @@ public actor GitLabClient {
         return items.map { item in
             let assets = ((item.assets?.links ?? []) + (item.assets?.sources ?? [])).compactMap { asset -> RepoReleaseAssetSummary? in
                 guard let name = asset.name, let url = asset.url else { return nil }
+
                 return RepoReleaseAssetSummary(name: name, sizeBytes: nil, downloadCount: 0, url: url)
             }
             return RepoReleaseSummary(
@@ -255,6 +282,49 @@ public actor GitLabClient {
         }
     }
 
+    private func openMergeRequestCountsByProject() async throws -> [Int: Int] {
+        var counts: [Int: Int] = [:]
+        var page = 1
+        while true {
+            let items = try await self.get(
+                path: "/merge_requests",
+                queryItems: [
+                    URLQueryItem(name: "scope", value: "all"),
+                    URLQueryItem(name: "state", value: "opened"),
+                    URLQueryItem(name: "per_page", value: "100"),
+                    URLQueryItem(name: "page", value: "\(page)")
+                ],
+                decode: [GitLabProjectReferenceItem].self
+            )
+            for item in items {
+                counts[item.projectID, default: 0] += 1
+            }
+            guard items.count == 100 else { return counts }
+
+            page += 1
+        }
+    }
+
+    private func openItemCount(path: String) async throws -> Int {
+        var count = 0
+        var page = 1
+        while true {
+            let items = try await self.get(
+                path: path,
+                queryItems: [
+                    URLQueryItem(name: "state", value: "opened"),
+                    URLQueryItem(name: "per_page", value: "100"),
+                    URLQueryItem(name: "page", value: "\(page)")
+                ],
+                decode: [GitLabCountItem].self
+            )
+            count += items.count
+            guard items.count == 100 else { return count }
+
+            page += 1
+        }
+    }
+
     private func get<T: Decodable>(
         path: String,
         queryItems: [URLQueryItem] = [],
@@ -277,13 +347,25 @@ public actor GitLabClient {
         guard let response = responseAny as? HTTPURLResponse else {
             throw GitLabAPIError.invalidResponse
         }
+        guard Self.sameOrigin(response.url, url) else {
+            throw GitLabAPIError.invalidResponse
+        }
         guard (200 ..< 300).contains(response.statusCode) else {
             throw GitLabAPIError.badStatus(
                 code: response.statusCode,
                 message: Self.statusMessage(for: response.statusCode, data: data)
             )
         }
+
         return data
+    }
+
+    private static func sameOrigin(_ lhs: URL?, _ rhs: URL) -> Bool {
+        guard let lhs else { return false }
+
+        return lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
+            && lhs.host?.lowercased() == rhs.host?.lowercased()
+            && lhs.port == rhs.port
     }
 
     private func url(path: String, queryItems: [URLQueryItem]) throws -> URL {
@@ -293,6 +375,7 @@ public actor GitLabClient {
             components?.queryItems = queryItems
         }
         guard let url = components?.url else { throw GitLabAPIError.invalidHost }
+
         return url
     }
 
@@ -337,14 +420,15 @@ public actor GitLabClient {
 
     private static func preview(_ text: String?) -> String? {
         guard let text else { return nil }
+
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else { return nil }
+
         return String(trimmed.prefix(280))
     }
 
     private static func statusMessage(for status: Int, data: Data) -> String {
-        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let message = object["message"] {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let message = object["message"] {
             return "\(message)"
         }
         return HTTPURLResponse.localizedString(forStatusCode: status)

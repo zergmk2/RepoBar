@@ -37,11 +37,11 @@ extension StatusBarMenuManager {
     }
 
     @objc func openIssues(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "issues")
+        self.openRepoURL(sender: sender, build: self.webURLBuilder.issuesURL)
     }
 
     @objc func openPulls(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "pulls")
+        self.openRepoURL(sender: sender, build: self.webURLBuilder.pullsURL)
     }
 
     @objc func openActions(_ sender: NSMenuItem) {
@@ -52,19 +52,19 @@ extension StatusBarMenuManager {
     }
 
     @objc func openDiscussions(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "discussions")
+        self.openRepoURL(sender: sender, build: self.webURLBuilder.discussionsURL)
     }
 
     @objc func openTags(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "tags")
+        self.openRepoURL(sender: sender, build: self.webURLBuilder.tagsURL)
     }
 
     @objc func openBranches(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "branches")
+        self.openRepoURL(sender: sender, build: self.webURLBuilder.branchesURL)
     }
 
     @objc func openCommits(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "commits")
+        self.openRepoURL(sender: sender, build: self.webURLBuilder.commitsURL)
     }
 
     func cachedRecentCommitDigest(fullName: String) -> Int? {
@@ -72,11 +72,17 @@ extension StatusBarMenuManager {
     }
 
     @objc func openContributors(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "graphs/contributors")
+        self.openRepoURL(sender: sender, build: self.webURLBuilder.contributorsURL)
     }
 
     @objc func openReleases(_ sender: NSMenuItem) {
-        self.openRepoPath(sender: sender, path: "releases")
+        self.openRepoURL(sender: sender, build: self.webURLBuilder.releasesURL)
+    }
+
+    private func openRepoURL(sender: NSMenuItem, build: (String) -> URL?) {
+        guard let fullName = self.repoFullName(from: sender), let url = build(fullName) else { return }
+
+        self.open(url: url)
     }
 
     @objc func openLatestRelease(_ sender: NSMenuItem) {

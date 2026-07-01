@@ -143,7 +143,7 @@ extension AppState {
                 await self.handleAuthenticationFailure(error)
                 return
             }
-        let diagnostics = self.activeProvider == .github ? await self.github.diagnostics() : .empty
+            let diagnostics = self.activeProvider == .github ? await self.github.diagnostics() : .empty
             let cacheSummary = try? RepoBarPersistentCache.summary(limit: 100)
             await MainActor.run {
                 self.session.localProjectsScanInProgress = false

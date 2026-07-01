@@ -212,9 +212,6 @@ final class AccountManager {
                 if let pat = try? tokenStore.loadPAT(accountID: accountID) {
                     return pat
                 }
-                if let tokens = try? tokenStore.loadTokens(accountID: accountID) {
-                    return tokens.accessToken
-                }
                 throw URLError(.userAuthenticationRequired)
             }
             self.providerClients[account.id] = client

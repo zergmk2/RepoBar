@@ -222,7 +222,7 @@ private func rootHelpText() -> String {
       repobar cache clear [--json] [--plain]
       repobar settings show [--json] [--plain]
       repobar settings set <key> <value> [--json] [--plain]
-      repobar login [--host URL] [--client-id ID] [--client-secret SECRET] [--loopback-port PORT]
+      repobar login [--provider github|gitlab] [--host URL] [--token-stdin] [--client-id ID] [--client-secret SECRET] [--loopback-port PORT]
       repobar logout
       repobar import-gh-token [--host URL]
       repobar status [--json]
@@ -750,10 +750,13 @@ func printHelp(_ target: HelpTarget) {
         """
     case .login:
         """
-        repobar login - sign in via browser OAuth
+        repobar login - sign in to GitHub with OAuth or GitLab with a PAT
 
         Usage:
-          repobar login [--host URL] [--client-id ID] [--client-secret SECRET] [--loopback-port PORT]
+          repobar login [--provider github|gitlab] [--host URL] [--token-stdin] [--client-id ID] [--client-secret SECRET] [--loopback-port PORT]
+
+        GitLab example:
+          printf '%s\n' "$GITLAB_TOKEN" | repobar login --provider gitlab --host https://gitlab.com --token-stdin
         """
     case .logout:
         """

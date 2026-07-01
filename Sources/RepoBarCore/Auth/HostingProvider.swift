@@ -26,14 +26,21 @@ public enum HostingProviderHostNormalizer {
         guard var components = URLComponents(url: host, resolvingAgainstBaseURL: false) else {
             throw GitHubAPIError.invalidHost
         }
+
         if components.scheme == nil { components.scheme = "https" }
-        guard components.scheme?.lowercased() == "https", components.host != nil else {
+        guard components.scheme?.lowercased() == "https",
+              components.host != nil,
+              components.user == nil,
+              components.password == nil
+        else {
             throw GitHubAPIError.invalidHost
         }
+
         components.path = ""
         components.query = nil
         components.fragment = nil
         guard let cleaned = components.url else { throw GitHubAPIError.invalidHost }
+
         return cleaned
     }
 
@@ -41,18 +48,22 @@ public enum HostingProviderHostNormalizer {
         guard var components = URLComponents(url: host, resolvingAgainstBaseURL: false) else {
             throw GitLabAPIError.invalidHost
         }
+
         if components.scheme == nil { components.scheme = "https" }
-        guard let scheme = components.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              components.host != nil
+        guard components.scheme?.lowercased() == "https",
+              components.host != nil,
+              components.user == nil,
+              components.password == nil
         else {
             throw GitLabAPIError.invalidHost
         }
-        components.scheme = scheme
+
+        components.scheme = "https"
         components.path = ""
         components.query = nil
         components.fragment = nil
         guard let cleaned = components.url else { throw GitLabAPIError.invalidHost }
+
         return cleaned
     }
 }

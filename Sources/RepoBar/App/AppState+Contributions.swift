@@ -4,6 +4,7 @@ import RepoBarCore
 extension AppState {
     /// Preloads the user's contribution heatmap so the header can render without remote images.
     func loadContributionHeatmapIfNeeded(for username: String) async {
+        guard self.activeProvider == .github else { return }
         guard self.session.settings.appearance.showContributionHeader else { return }
 
         if self.session.contributionUser == username, !self.session.contributionHeatmap.isEmpty { return }

@@ -122,7 +122,7 @@ final class StatusBarMenuBuilder {
                 return []
             }
         case .contributionHeader:
-            guard case .loggedIn = session.account else { return [] }
+            guard self.appState.activeProvider == .github, case .loggedIn = session.account else { return [] }
 
             let hasContributionHeatmap = session.contributionHeatmap.isEmpty == false
             let shouldShowContributionHeader = settings.appearance.showContributionHeader
@@ -159,11 +159,11 @@ final class StatusBarMenuBuilder {
             }
             return []
         case .rateLimits:
-            guard case .loggedIn = session.account else { return [] }
+            guard self.appState.activeProvider == .github, case .loggedIn = session.account else { return [] }
 
             return [self.rateLimitsStatusMenuItem()]
         case .actionsLimits:
-            guard case .loggedIn = session.account else { return [] }
+            guard self.appState.activeProvider == .github, case .loggedIn = session.account else { return [] }
 
             return [self.actionsLimitsStatusMenuItem()]
         case .filters:

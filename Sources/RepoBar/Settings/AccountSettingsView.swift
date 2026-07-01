@@ -108,7 +108,7 @@ struct AccountSettingsView: View {
                                 .frame(minWidth: self.enterpriseFieldMinWidth)
                                 .layoutPriority(1)
                         }
-                        Text(self.hostMode == .gitLab ? "Required scopes: read_user, read_api, read_repository" : "Recommended for SAML SSO organizations. Required scopes: repo, read:org")
+                        Text(self.hostMode == .gitLab ? "Required scope: read_api" : "Recommended for SAML SSO organizations. Required scopes: repo, read:org")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Link(self.hostMode == .gitLab ? "Create a token on GitLab" : "Create a token on GitHub", destination: self.createTokenURL())
@@ -254,8 +254,7 @@ struct AccountSettingsView: View {
             } else if let enterprise = self.session.settings.enterpriseHost {
                 self.enterpriseHost = enterprise.absoluteString
                 self.hostMode = .enterprise
-            }
-            if self.session.settings.enterpriseHost == nil {
+            } else if self.session.settings.enterpriseHost == nil {
                 self.hostMode = .githubCom
                 if self.clientID.isEmpty {
                     self.clientID = RepoBarAuthDefaults.clientID
@@ -458,7 +457,7 @@ struct AccountSettingsView: View {
             if self.hostMode != .githubCom {
                 guard let enterpriseURL = self.normalizedHost(for: self.hostMode.provider) else {
                     self.validationError = self.hostMode == .gitLab
-                        ? "GitLab Base URL must be a valid http:// or https:// URL."
+                        ? "GitLab Base URL must be a valid https:// URL with a trusted certificate."
                         : "Enterprise Base URL must be a valid https:// URL with a trusted certificate."
                     self.isValidatingPAT = false
                     return
@@ -486,8 +485,10 @@ struct AccountSettingsView: View {
         let baseHost = self.hostMode != .githubCom
             ? (self.normalizedHost(for: self.hostMode.provider)?.absoluteString ?? "https://github.com")
             : "https://github.com"
-        let scopes = self.hostMode == .gitLab ? "read_user,read_api,read_repository" : "repo,read:org"
-        return URL(string: "\(baseHost)/settings/tokens/new?scopes=\(scopes)&description=RepoBar")!
+        if self.hostMode == .gitLab {
+            return URL(string: "\(baseHost)/-/user_settings/personal_access_tokens?name=RepoBar&scopes=read_api")!
+        }
+        return URL(string: "\(baseHost)/settings/tokens/new?scopes=repo,read:org&description=RepoBar")!
     }
 
     private func normalizedHost(for provider: HostingProvider) -> URL? {

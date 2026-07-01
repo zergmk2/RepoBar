@@ -133,20 +133,20 @@ extension AppState {
             host: host,
             authMethod: method,
             loopbackPort: self.session.settings.loopbackPort,
-            clientID: (try? TokenStore.shared.loadClientCredentials())?.clientID
+            clientID: provider == .github ? (try? TokenStore.shared.loadClientCredentials())?.clientID : nil
         )
 
         TokenStore.shared.clear(accountID: account.id)
         switch method {
         case .oauth:
-            if let tokens = try? TokenStore.shared.load() {
+            if provider == .github, let tokens = try? TokenStore.shared.load() {
                 try? TokenStore.shared.save(tokens: tokens, accountID: account.id)
             }
-            if let creds = try? TokenStore.shared.loadClientCredentials() {
+            if provider == .github, let creds = try? TokenStore.shared.loadClientCredentials() {
                 try? TokenStore.shared.save(clientCredentials: creds, accountID: account.id)
             }
         case .pat:
-            let token = pat ?? (try? TokenStore.shared.loadPAT())
+            let token = pat ?? (provider == .github ? (try? TokenStore.shared.loadPAT()) : nil)
             if let token {
                 try? TokenStore.shared.savePAT(token, accountID: account.id)
             }
@@ -161,9 +161,7 @@ extension AppState {
         }
         self.session.settings.activeAccountID = account.id
         self.mirrorActiveAccountIntoSettings(account)
-        if account.provider == .github {
-            self.mirrorActiveAccountCredentialsToLegacy(account)
-        }
+        self.mirrorActiveAccountCredentialsToLegacy(account)
         self.session.activeAccountID = self.accountManager.activeAccountID
         await self.syncPrimaryGitHubClientToActiveAccount()
         self.session.accountSessions = self.session.settings.accounts.map { existing in
@@ -173,6 +171,10 @@ extension AppState {
             return AccountSession(account: existing)
         }
         self.persistSettings()
+        self.updateGitHubReferenceMonitor()
+        if account.provider != .github {
+            self.clearGitHubOnlySessionState()
+        }
     }
 
     /// Switches the active account by ID. No-op when the ID is unknown.
@@ -187,6 +189,10 @@ extension AppState {
         }
         self.persistSettings()
         await self.syncPrimaryGitHubClientToActiveAccount()
+        self.updateGitHubReferenceMonitor()
+        if self.activeProvider != .github {
+            self.clearGitHubOnlySessionState()
+        }
         await self.refreshSessionIdentityFromActiveClient()
         // Trigger a refresh so the menu reflects the new active account.
         self.requestRefresh(cancelInFlight: true)
@@ -208,6 +214,10 @@ extension AppState {
             TokenStore.shared.clear()
         }
         await self.syncPrimaryGitHubClientToActiveAccount()
+        self.updateGitHubReferenceMonitor()
+        if self.activeProvider != .github {
+            self.clearGitHubOnlySessionState()
+        }
         await self.refreshSessionIdentityFromActiveClient()
         // Drop any per-account pinned/hidden lists for the removed account.
         var lists = self.session.settings.accountRepoLists
@@ -248,11 +258,8 @@ extension AppState {
     }
 
     private func mirrorActiveAccountIntoSettings(_ account: Account) {
-        guard account.provider == .github else {
-            self.session.settings.authMethod = account.authMethod
-            self.session.settings.loopbackPort = account.loopbackPort
-            return
-        }
+        guard account.provider == .github else { return }
+
         self.session.settings.githubHost = account.host
         self.session.settings.enterpriseHost = account.host.host?.lowercased() == "github.com" ? nil : account.host
         self.session.settings.authMethod = account.authMethod
@@ -260,6 +267,8 @@ extension AppState {
     }
 
     private func mirrorActiveAccountCredentialsToLegacy(_ account: Account) {
+        guard account.provider == .github else { return }
+
         _ = TokenStore.shared.mirrorAccountCredentialsToLegacy(
             accountID: account.id,
             authMethod: account.authMethod

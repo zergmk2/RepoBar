@@ -62,7 +62,7 @@ final class RecentMenuService {
 
     func descriptors() -> [RepoRecentMenuKind: RecentMenuDescriptor] {
         let commitDescriptor = self.commitDescriptor()
-        let ciHeaderTitle = self.provider() == .gitlab ? "Open CI/CD Jobs" : "Open Actions"
+        let ciHeaderTitle = self.provider() == .gitlab ? "Open CI/CD Pipelines" : "Open Actions"
 
         let descriptors: [RecentMenuDescriptor] = [
             commitDescriptor,

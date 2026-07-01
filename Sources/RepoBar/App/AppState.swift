@@ -108,8 +108,11 @@ final class AppState {
         await self.github.setTokenProvider { @Sendable [weak self] () async throws -> OAuthTokens? in
             guard let self else { return nil }
 
-            let accountID = await MainActor.run { self.session.settings.resolvedActiveAccount()?.id }
-            if let accountID {
+            let account = await MainActor.run { self.session.settings.resolvedActiveAccount() }
+            if let account {
+                guard account.provider == .github else { return nil }
+
+                let accountID = account.id
                 if let token = try? await self.accountManager.currentAccessToken(accountID: accountID) {
                     return OAuthTokens(accessToken: token, refreshToken: "", expiresAt: nil)
                 }
@@ -136,7 +139,11 @@ final class AppState {
         try? await Task.sleep(for: .milliseconds(250))
         guard self.isCurrentLifecycle(lifecycleID) else { return }
 
-        await self.refreshRateLimitDisplayState()
+        if self.activeProvider == .github {
+            await self.refreshRateLimitDisplayState()
+        } else {
+            self.clearGitHubOnlySessionState()
+        }
         if self.lifecycleID == lifecycleID {
             self.startupTask = nil
         }
@@ -190,6 +197,11 @@ final class AppState {
     }
 
     func refreshRateLimitDisplayState() async {
+        guard self.activeProvider == .github else {
+            self.clearGitHubOnlySessionState()
+            return
+        }
+
         _ = try? await self.github.refreshRateLimitResources()
         let diagnostics = await self.github.diagnostics()
         let cacheSummary = try? RepoBarPersistentCache.summary(limit: 100)
@@ -232,7 +244,9 @@ extension AppState {
             self.gitHubReferenceMonitor = nil
             return
         }
-        guard self.session.settings.gitHubReferenceMonitor.enabled else {
+        guard self.activeProvider == .github,
+              self.session.settings.gitHubReferenceMonitor.enabled
+        else {
             Task { await DiagnosticsLogger.shared.message("GitHub reference monitor disabled") }
             self.gitHubReferenceMonitor?.stop()
             self.gitHubReferenceMonitor = nil
@@ -253,6 +267,19 @@ extension AppState {
         }
         Task { await DiagnosticsLogger.shared.message("GitHub reference monitor started mode=clipboard-only") }
         self.gitHubReferenceMonitor?.start()
+    }
+
+    func clearGitHubOnlySessionState() {
+        self.session.rateLimitReset = nil
+        self.session.rateLimitDiagnostics = .empty
+        self.session.rateLimitCacheSummary = nil
+        self.session.actionsOrgSnapshots = []
+        self.session.contributionHeatmap = []
+        self.session.contributionUser = nil
+        self.session.contributionError = nil
+        self.session.contributionIsLoading = false
+        self.setGitHubReferenceMatches([])
+        NotificationCenter.default.post(name: .menuDiagnosticsDidChange, object: nil)
     }
 
     private func clearGitHubReference() async {

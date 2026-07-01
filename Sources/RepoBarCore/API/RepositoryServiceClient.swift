@@ -1,13 +1,14 @@
 import Foundation
-import RepoBarCore
 
-protocol RepositoryServiceClient: Sendable {
+/// Provider-neutral repository operations shared by the app and CLI.
+public protocol RepositoryServiceClient: Sendable {
     func currentUser() async throws -> UserIdentity
     func repositoryList(limit: Int?) async throws -> [Repository]
     func cachedRepositoryList(limit: Int?) async throws -> [Repository]
     func activityRepositories(limit: Int?) async throws -> [Repository]
     func fullRepository(owner: String, name: String) async throws -> Repository
     func fullRepository(owner: String, name: String, options: RepositoryDetailOptions) async throws -> Repository
+    func latestRelease(owner: String, name: String) async throws -> Release?
     func recentIssues(owner: String, name: String, limit: Int) async throws -> [RepoIssueSummary]
     func recentPullRequests(owner: String, name: String, limit: Int) async throws -> [RepoPullRequestSummary]
     func recentReleases(owner: String, name: String, limit: Int) async throws -> [RepoReleaseSummary]
@@ -46,5 +47,11 @@ extension GitLabClient: RepositoryServiceClient {
         options _: RepositoryDetailOptions
     ) async throws -> Repository {
         try await self.fullRepository(owner: owner, name: name)
+    }
+
+    public func latestRelease(owner: String, name: String) async throws -> Release? {
+        try await self.recentReleases(owner: owner, name: name, limit: 1).first.map {
+            Release(name: $0.name, tag: $0.tag, publishedAt: $0.publishedAt, url: $0.url)
+        }
     }
 }

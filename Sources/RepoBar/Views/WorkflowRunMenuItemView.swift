@@ -64,9 +64,7 @@ struct WorkflowRunMenuItemView: View {
     }
 
     var statusLabel: String {
-        let label = if let conclusion = summary.conclusion?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       conclusion.isEmpty == false
-        {
+        let label = if let conclusion = summary.conclusion?.trimmingCharacters(in: .whitespacesAndNewlines), conclusion.isEmpty == false {
             conclusion
         } else {
             switch self.summary.status {

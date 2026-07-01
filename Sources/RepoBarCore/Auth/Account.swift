@@ -105,9 +105,9 @@ public struct Account: Identifiable, Codable, Equatable, Hashable, Sendable {
     public static func deriveAPIHost(provider: HostingProvider, for host: URL) -> URL {
         switch provider {
         case .github:
-            return self.deriveGitHubAPIHost(for: host)
+            self.deriveGitHubAPIHost(for: host)
         case .gitlab:
-            return host.appendingPathComponent("api/v4")
+            host.appendingPathComponent("api/v4")
         }
     }
 

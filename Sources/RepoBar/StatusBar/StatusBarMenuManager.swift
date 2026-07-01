@@ -289,6 +289,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     }
 
     private func prefetchChangelogIfNeeded(for menu: NSMenu) {
+        guard self.appState.activeProvider == .github else { return }
         guard let fullName = self.menuBuilder.repoFullName(for: menu) else { return }
 
         let localPath = self.appState.session.localRepoIndex.status(forFullName: fullName)?.path
@@ -312,7 +313,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
         self.recentListCoordinator.pruneMenus()
         self.localGitMenuCoordinator.pruneMenus()
         self.changelogMenuCoordinator.pruneMenus()
-        if self.appState.session.settings.appearance.showContributionHeader {
+        if self.appState.activeProvider == .github, self.appState.session.settings.appearance.showContributionHeader {
             if case let .loggedIn(user) = self.appState.session.account {
                 Task { await self.appState.loadContributionHeatmapIfNeeded(for: user.username) }
             }
@@ -429,7 +430,8 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     }
 
     func cloneURL(for fullName: String) -> URL? {
-        let host = self.appState.session.settings.githubHost
+        let host = self.appState.session.settings.resolvedActiveAccount()?.host
+            ?? self.appState.session.settings.githubHost
         var url = host.appendingPathComponent(fullName)
         url.appendPathExtension("git")
         return url

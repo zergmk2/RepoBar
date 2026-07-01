@@ -2,48 +2,6 @@ import Commander
 import Foundation
 import RepoBarCore
 
-protocol RepositoryClient: Sendable {
-    func currentUser() async throws -> UserIdentity
-    func activityRepositories(limit: Int?) async throws -> [Repository]
-    func fullRepository(owner: String, name: String) async throws -> Repository
-    func latestRelease(owner: String, name: String) async throws -> Release?
-    func recentIssues(owner: String, name: String, limit: Int) async throws -> [RepoIssueSummary]
-    func recentPullRequests(owner: String, name: String, limit: Int) async throws -> [RepoPullRequestSummary]
-    func recentReleases(owner: String, name: String, limit: Int) async throws -> [RepoReleaseSummary]
-    func recentWorkflowRuns(owner: String, name: String, limit: Int) async throws -> [RepoWorkflowRunSummary]
-    func recentDiscussions(owner: String, name: String, limit: Int) async throws -> [RepoDiscussionSummary]
-    func recentTags(owner: String, name: String, limit: Int) async throws -> [RepoTagSummary]
-    func recentBranches(owner: String, name: String, limit: Int) async throws -> [RepoBranchSummary]
-    func topContributors(owner: String, name: String, limit: Int) async throws -> [RepoContributorSummary]
-    func recentCommits(owner: String, name: String, limit: Int) async throws -> RepoCommitList
-}
-
-extension GitHubClient: RepositoryClient {}
-
-extension GitHubClient {
-    public func fullRepository(owner: String, name: String) async throws -> Repository {
-        try await self.fullRepository(owner: owner, name: name, options: .default)
-    }
-
-    public func recentPullRequests(owner: String, name: String, limit: Int) async throws -> [RepoPullRequestSummary] {
-        try await self.recentPullRequests(
-            owner: owner,
-            name: name,
-            limit: limit,
-            state: .open,
-            includeCommentCounts: false
-        )
-    }
-}
-
-extension GitLabClient: RepositoryClient {
-    public func latestRelease(owner: String, name: String) async throws -> Release? {
-        try await self.recentReleases(owner: owner, name: name, limit: 1).first.map {
-            Release(name: $0.name, tag: $0.tag, publishedAt: $0.publishedAt, url: $0.url)
-        }
-    }
-}
-
 struct AuthContext {
     let client: GitHubClient
     let settings: UserSettings
@@ -52,7 +10,7 @@ struct AuthContext {
 
 struct ProviderAuthContext {
     let provider: HostingProvider
-    let repositoryClient: any RepositoryClient
+    let repositoryClient: any RepositoryServiceClient
     let githubClient: GitHubClient?
     let gitlabClient: GitLabClient?
     let settings: UserSettings
@@ -75,6 +33,9 @@ struct RepoIdentifier: Equatable {
 func makeAuthenticatedClient() async throws -> AuthContext {
     let settings = cliSettingsStore().load()
     if let account = settings.resolvedActiveAccount() {
+        guard account.provider == .github else {
+            throw ValidationError("This command requires an active GitHub account")
+        }
         guard (try? TokenStore.shared.loadTokens(accountID: account.id)) != nil
             || (try? TokenStore.shared.loadPAT(accountID: account.id)) != nil
         else {
@@ -133,14 +94,14 @@ func makeProviderAuthenticatedClient() async throws -> ProviderAuthContext {
         )
     }
 
-    guard (try? TokenStore.shared.loadTokens(accountID: account.id)) != nil
-        || (try? TokenStore.shared.loadPAT(accountID: account.id)) != nil
-    else {
-        throw CLIError.notAuthenticated
-    }
-
     switch account.provider {
     case .github:
+        guard (try? TokenStore.shared.loadTokens(accountID: account.id)) != nil
+            || (try? TokenStore.shared.loadPAT(accountID: account.id)) != nil
+        else {
+            throw CLIError.notAuthenticated
+        }
+
         let context = try await makeAuthenticatedClient()
         return ProviderAuthContext(
             provider: .github,
@@ -151,12 +112,13 @@ func makeProviderAuthenticatedClient() async throws -> ProviderAuthContext {
             host: context.host
         )
     case .gitlab:
+        guard (try? TokenStore.shared.loadPAT(accountID: account.id)) != nil else {
+            throw CLIError.notAuthenticated
+        }
+
         let client = try GitLabClient(apiHost: account.apiHost) {
             if let pat = try? TokenStore.shared.loadPAT(accountID: account.id) {
                 return pat
-            }
-            if let tokens = try? TokenStore.shared.loadTokens(accountID: account.id) {
-                return tokens.accessToken
             }
             throw CLIError.notAuthenticated
         }
@@ -172,17 +134,15 @@ func makeProviderAuthenticatedClient() async throws -> ProviderAuthContext {
 }
 
 func mirrorAccountCredentialsToLegacy(_ account: Account) throws {
+    guard account.provider == .github else { return }
+
     if TokenStore.shared.mirrorAccountCredentialsToLegacy(accountID: account.id, authMethod: account.authMethod) == false {
         throw CLIError.notAuthenticated
     }
 }
 
 func mirrorActiveAccountIntoSettings(_ account: Account, settings: inout UserSettings) {
-    guard account.provider == .github else {
-        settings.authMethod = account.authMethod
-        settings.loopbackPort = account.loopbackPort
-        return
-    }
+    guard account.provider == .github else { return }
 
     settings.githubHost = account.host
     settings.enterpriseHost = account.host.host?.lowercased() == "github.com" ? nil : account.host
@@ -195,6 +155,7 @@ func mirrorResolvedActiveAccount(settings: inout UserSettings) {
         TokenStore.shared.clear()
         return
     }
+    guard active.provider == .github else { return }
 
     mirrorActiveAccountIntoSettings(active, settings: &settings)
     _ = TokenStore.shared.mirrorAccountCredentialsToLegacy(
@@ -258,7 +219,7 @@ private func repoPathFromRemote(_ value: String) -> [String]? {
 }
 
 private func repositoryPathParts(from parts: [String]) -> [String] {
-    let stopComponents: Set<String> = [
+    let stopComponents: Set = [
         "-", "actions", "activity", "branches", "commits", "discussions", "issues",
         "merge_requests", "pipelines", "pull", "releases", "tags", "tree", "workflows"
     ]
@@ -270,7 +231,7 @@ private func repositoryPathParts(from parts: [String]) -> [String] {
 
 private extension RepoIdentifier {
     static func isLikelyRepositoryPath(_ parts: [String]) -> Bool {
-        let reserved: Set<String> = [
+        let reserved: Set = [
             "actions", "activity", "branches", "commits", "discussions", "issues",
             "merge_requests", "pipelines", "pull", "releases", "tags", "tree", "workflows"
         ]
@@ -281,6 +242,7 @@ private extension RepoIdentifier {
         guard rawParts.count >= 2 else {
             throw ValidationError("Repository must be in namespace/name format")
         }
+
         var parts = rawParts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         if parts[parts.count - 1].hasSuffix(".git") {
             parts[parts.count - 1].removeLast(4)

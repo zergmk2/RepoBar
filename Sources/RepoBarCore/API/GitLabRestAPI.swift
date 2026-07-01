@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GitLabRestAPI {
+public enum GitLabRestAPI {
     public static func projectsQueryItems() -> [URLQueryItem] {
         [
             URLQueryItem(name: "membership", value: "true"),

@@ -91,10 +91,10 @@ struct RecentListMenuTests {
     @Test
     func `gitlab active account drives repository browser URLs`() throws {
         let appState = AppState()
-        let account = Account(
+        let account = try Account(
             provider: .gitlab,
             username: "alice",
-            host: try #require(URL(string: "http://gitlab.example.com:1180")),
+            host: #require(URL(string: "https://gitlab.example.com:1180")),
             authMethod: .pat
         )
         appState.session.settings.accounts = [account]
@@ -103,11 +103,11 @@ struct RecentListMenuTests {
 
         #expect(
             manager.webURLBuilder.repoURL(fullName: "platform/backend/widget")?.absoluteString ==
-                "http://gitlab.example.com:1180/platform/backend/widget"
+                "https://gitlab.example.com:1180/platform/backend/widget"
         )
         #expect(
             manager.webURLBuilder.ciRunsURL(fullName: "platform/backend/widget")?.absoluteString ==
-                "http://gitlab.example.com:1180/platform/backend/widget/-/jobs"
+                "https://gitlab.example.com:1180/platform/backend/widget/-/pipelines"
         )
     }
 
@@ -115,10 +115,10 @@ struct RecentListMenuTests {
     @Test
     func `gitlab repo submenu uses gitlab open label`() throws {
         let appState = AppState()
-        let account = Account(
+        let account = try Account(
             provider: .gitlab,
             username: "alice",
-            host: try #require(URL(string: "https://gitlab.example.com")),
+            host: #require(URL(string: "https://gitlab.example.com")),
             authMethod: .pat
         )
         appState.session.settings.accounts = [account]

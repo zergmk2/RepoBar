@@ -22,6 +22,7 @@ extension AppState {
                 commitError: nil
             )
         }
+
         async let activityResult: Result<[ActivityEvent], Error> = self.capture {
             try await self.github.userActivityEvents(
                 username: username,

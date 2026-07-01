@@ -332,7 +332,7 @@ struct CheckoutCommand: CommanderRunnableCommand {
         let repo = try requireRepoIdentifier(self.repoName)
         let settingsStore = cliSettingsStore()
         var settings = settingsStore.load()
-        let host = settings.enterpriseHost ?? settings.githubHost
+        let host = settings.resolvedActiveAccount()?.host ?? settings.enterpriseHost ?? settings.githubHost
 
         let rootPath = self.destination == nil ? (self.root ?? settings.localProjects.rootPath) : nil
         if self.destination == nil, rootPath?.isEmpty ?? true {
