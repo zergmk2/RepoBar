@@ -1,6 +1,6 @@
 # 🚦 RepoBar
 
-RepoBar is a native macOS menu bar app for keeping GitHub work visible without living in a browser. It shows the repositories you care about, their current issue and PR pressure, recent activity, CI state, releases, local checkout status, and rate-limit health in a compact menu.
+RepoBar is a native macOS menu bar app for keeping repository work visible without living in a browser. GitHub is the full-featured default; GitLab has a bounded provider integration for core repository workflows.
 
 ![RepoBar screenshot](docs/assets/repobar.png)
 
@@ -56,9 +56,9 @@ Preferences > Repositories is a real repository browser. It searches repositorie
 
 RepoBar can see public repositories, user repositories, collaborator repositories, and organization repositories that the current authentication method is allowed to access.
 
-## Authentication And Private Repos
+## Providers And Authentication
 
-RepoBar supports GitHub.com and GitHub Enterprise.
+RepoBar supports GitHub.com and GitHub Enterprise as its full product surface.
 
 For GitHub.com, RepoBar uses a GitHub App user token and does not request broad classic OAuth repository scopes. Access is bounded by:
 
@@ -69,11 +69,15 @@ Private organization repositories require the RepoBar GitHub App to be installed
 
 GitHub Enterprise uses the configured enterprise host and OAuth settings. TLS is required.
 
+GitLab.com and self-managed GitLab use a Personal Access Token with the `read_api` scope. RepoBar supports projects (including subgroups), issue and merge-request counts and recent lists, pipelines, releases, tags, branches, commits, contributors, provider-correct browser links, and local checkout. GitLab does not enable GitHub-only features such as OAuth, discussions, traffic, contribution heatmaps, Actions usage, GitHub notifications/reference monitoring, or GitHub archive fallback.
+
+Every provider host must use HTTPS with a trusted certificate. Credentials and caches are account-scoped; GitLab tokens are never copied into legacy GitHub credential keys or sent to GitHub endpoints.
+
 Release builds store tokens in the macOS Keychain. Debug builds and SwiftPM CLI/test runs default to file-backed auth storage so local development does not trigger Keychain prompts. See [docs/auth-storage.md](docs/auth-storage.md).
 
 ## Local Projects
 
-RepoBar can scan a local projects folder such as `~/Projects` and match local checkouts to GitHub repositories.
+RepoBar can scan a local projects folder such as `~/Projects` and match local checkouts to GitHub or GitLab repositories.
 
 Local state appears directly in the menu:
 
@@ -121,6 +125,7 @@ Examples:
 
 ```bash
 repobar login
+printf '%s\n' "$GITLAB_TOKEN" | repobar login --provider gitlab --host https://gitlab.com --token-stdin
 repobar repos --plain
 repobar repos --owner openclaw --sort prs --plain
 repobar repo openclaw/openclaw --plain
@@ -189,7 +194,7 @@ Useful docs:
 
 ## Status
 
-RepoBar is early and moving quickly. The latest released version is 0.5.0, with smarter persistent caching, archive-backed fallback paths, rate-limit visibility, GitHub reference previews, and more robust menu behavior.
+RepoBar is early and moving quickly. See the [latest release](https://github.com/steipete/RepoBar/releases/latest) and [changelog](CHANGELOG.md) for current shipped behavior.
 
 ## License
 

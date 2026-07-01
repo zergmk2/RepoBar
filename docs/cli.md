@@ -45,7 +45,7 @@ The file store lives under `~/Library/Application Support/RepoBar/DebugAuth`. Se
     `--scope` (all|pinned|hidden), `--filter` (all|work|issues|prs), `--owner`,
     `--mine`,
     `--pinned-only`, `--only-with` (work|issues|prs), `--sort` (activity|issues|prs|stars|repo|event).
-- `repo <owner/name>`: repository summary.
+- `repo <namespace/name>`: repository summary. GitLab subgroup paths are supported.
   - Flags: `--traffic`, `--heatmap`, `--release`.
 - `issues <owner/name>`: list open issues (recently updated).
   - Flags: `--limit`.
@@ -78,7 +78,7 @@ The file store lives under `~/Library/Application Support/RepoBar/DebugAuth`. Se
 - `worktrees <path|owner/name>`: list local worktrees.
 - `open finder <path|owner/name>`: open in Finder.
 - `open terminal <path|owner/name>`: open in Terminal (respects preferred terminal setting).
-- `checkout <owner/name>`: clone repo into Local Projects root.
+- `checkout <namespace/name>`: clone from the active provider into Local Projects root.
   - Flags: `--root`, `--destination`, `--open`.
 - `refresh`: refresh pinned repositories using current settings.
 - `contributions`: fetch contribution heatmap for a user.
@@ -106,9 +106,11 @@ The file store lives under `~/Library/Application Support/RepoBar/DebugAuth`. Se
 - `cache clear`: clear persistent REST responses, GraphQL responses, and rate-limit rows.
 - `settings show`: print current settings.
 - `settings set <key> <value>`: update settings (refresh interval, display limit, heatmap, local settings).
-- `login`: browser OAuth login.
-  - Flags: `--host`, `--client-id`, `--client-secret`, `--loopback-port`, `--label`.
-  - On success the CLI fetches `GET /user` to identify the signed-in account, persists tokens under the account-scoped Keychain/file keys, and appends the account to `accounts`.
+- `login`: GitHub browser OAuth login, or GitLab PAT login.
+  - GitHub flags: `--host`, `--client-id`, `--client-secret`, `--loopback-port`, `--label`.
+  - GitLab flags: `--provider gitlab`, `--host`, `--token-stdin`, `--label`.
+  - GitLab PATs require `read_api`; pass them through standard input so they do not appear in process arguments or shell history.
+  - On success the CLI fetches `GET /user`, persists credentials only under the provider account's scoped Keychain/file keys, and appends the account to `accounts`.
 - `logout`: clear stored credentials.
   - Flags: `--account <id|user@host>` (defaults to the active account), `--all` (clear every configured account).
 - `status`: show login state.
@@ -118,6 +120,8 @@ The file store lives under `~/Library/Application Support/RepoBar/DebugAuth`. Se
 - `accounts list`: list configured accounts (active account marked with `*`).
 - `accounts use <id|user@host>`: set the active account.
 - `accounts remove <id|user@host>`: clear stored credentials and remove the account.
+
+GitHub-only commands (`contributions`, global activity, `rate-limits`, archives, and reference translation) reject an active GitLab account instead of routing its token through a GitHub client. Repository commands use the active provider.
 ### Output standards
 - All list commands support: `--limit`, `--json`, `--plain`, `--no-color`.
 - List items include URLs when `--plain` is not set (link-enabled terminals).

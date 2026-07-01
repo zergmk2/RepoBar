@@ -9,12 +9,12 @@ read_when:
 
 # RepoBar Specification & Implementation Plan
 
-_Last updated: 2025-11-24_
+_Last updated: 2026-07-01_
 
 ## Goals
 - macOS menubar-only app (Swift 6.2, Xcode 26) showing selected GitHub repositories with CI state, issues/PR counts, latest release, recent activity, traffic uniques, and a custom blocky commit/activity heatmap.
 - Left-click opens rich window; right-click shows classic menu. Uses MenuBarExtraAccess pattern similar to VibeTunnel.
-- Login via browser-based OAuth web application flow + PKCE; release tokens are stored in Keychain, while debug builds use file-backed auth storage to avoid local Keychain prompts. Supports GitHub.com and GitHub Enterprise (trusted TLS only). Architecture ready for multi-account but UI surfaces one account.
+- Login via browser-based OAuth web application flow + PKCE for GitHub, or an account-scoped `read_api` PAT for GitLab. Release tokens are stored in Keychain, while debug builds use file-backed auth storage to avoid local Keychain prompts. Every provider requires trusted TLS.
 - Default repo selection: last 5 active repos for the user; user can pin/unpin repos and configure how many show. Refresh interval configurable (1/2/5/15 min, default 5). Launch at login toggle. Sparkle updates.
 - No Dock icon; single-instance only.
 
@@ -70,6 +70,12 @@ _Last updated: 2025-11-24_
 ### GitHub boundary (keep drift out)
 - All GitHub REST/GraphQL fetching lives in `RepoBarCore` (primarily `GitHubClient` + models).
 - App/UI code should not add new GitHub network calls directly; instead add a `RepoBarCore` API and consume it from the app/CLI.
+
+### GitLab boundary
+- GitLab support is intentionally bounded to projects, issues, merge requests, pipelines, releases, tags, branches, commits, contributors, browser links, and checkout. GitHub-only capabilities stay hidden and must not fall through to a `GitHubClient`.
+- GitLab PATs require only `read_api`, live in provider account-scoped storage, and must never enter legacy GitHub keys, GitHub clients, URLs, logs, or process arguments.
+- GitLab.com and self-managed hosts require HTTPS with normal platform trust. No ATS exceptions, HTTP compatibility path, self-signed bypass, or credential-bearing redirect following.
+- Provider-neutral operations use `RepositoryServiceClient` in `RepoBarCore`; provider-specific capabilities remain explicit rather than returning plausible but incorrect GitHub behavior.
 
 ## Permissions to request in GitHub App
 - GitHub.com OAuth: do not request OAuth scopes. GitHub App user access tokens are limited by the app's installed repository permissions and the signed-in user's access.
@@ -141,7 +147,7 @@ _Last updated: 2025-11-24_
 - Release tokens and secrets use Keychain; debug auth can use file-backed storage. Never log tokens or secrets.
 - Debug builds intentionally avoid Keychain via file-backed storage so local autonomous runs do not show macOS Keychain prompts.
 - App + CLI share tokens via Keychain access group only when a release build is properly provisioned for that entitlement.
-- TLS required (no ATS exceptions); reject self-signed for GHE.
+- TLS required for every provider (no ATS exceptions); reject self-signed hosts.
 - Minimal scopes; per-installation tokens only.
 - Single-instance enforced via Info.plist.
 

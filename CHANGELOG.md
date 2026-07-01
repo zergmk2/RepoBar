@@ -2,6 +2,7 @@
 
 ## 0.8.4 - Unreleased
 
+- Add bounded GitLab.com and self-managed GitLab support for projects, issues, merge requests, pipelines, releases, repository history, and local checkout, with HTTPS-only PAT authentication and provider-scoped credentials (thanks @zergmk2). (#85)
 - Coalesce concurrent OAuth token refreshes per account so rotating refresh tokens cannot race or overwrite newer credentials.
 - Persist the repository display limit from Settings and expose the active heatmap color control in General settings.
 - Keep every Settings tab inside the visible display frame, allow bounded manual resizing, and prevent the Repositories table from forcing the window under the Dock (thanks @Yuxin-Qiao). (#84)

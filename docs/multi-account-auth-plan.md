@@ -19,7 +19,7 @@ Landed:
 
 - Phase 0/1 — `Account`, `AccountSelection`, and `AccountScopedRepositoryLists` live in `RepoBarCore`; `UserSettings` decodes/encodes the new fields with safe defaults and omits them when empty so legacy reads stay clean.
 - Phase 1 — `TokenStore` exposes `save/load/clear(tokens:|clientCredentials:|PAT:_:accountID:)` plus an account index that lets callers enumerate accounts on the Keychain or file backend.
-- Phase 2 — `AccountManager` (`Sources/RepoBar/Auth/AccountManager.swift`) owns one `GitHubClient` and an account-scoped OAuth refresher per `Account`; `AppState` bootstraps it and `tokenRefreshTask` now drives `refreshAllIfNeeded()`.
+- Phase 2 — `AccountManager` (`Sources/RepoBar/Auth/AccountManager.swift`) owns one provider client per `Account` and an account-scoped OAuth refresher for GitHub OAuth accounts; `AppState` bootstraps it and `tokenRefreshTask` now drives `refreshAllIfNeeded()`.
 - Phase 2 — `AppState+Accounts.swift` performs a one-shot migration that probes `GET /user` with whichever credential currently exists, records the resulting `Account`, and copies tokens under the account-scoped keys.
 - Phase 3 — `Session` exposes `accountSessions` / `activeAccountID` / `aggregatedRepositories`, and `TaggedRepo` provides a collision-safe wrapper for the menu fan-out path. Single-account `repositories` and `accessibleRepositories` continue to drive existing UI.
 - Phase 4 — `HTTPResponseDiskCache` and `RepoBarPersistentCache` accept an `accountID:` parameter and resolve to `~/Library/Application Support/RepoBar/Cache/<account>.sqlite` (legacy path used when `accountID` is `nil`). `GraphQLResponseDiskCache.scoped(accountID:)` follows the same pattern.
